@@ -30,3 +30,30 @@ export async function checkExport(requestFile, authorize) {
 ```
 
 Use `pass` for a complete clean comparison, `hold` for a complete report with differences, and `needs_review` for a partial, unverifiable or mismatched report. Treat a timeout, checkout error or pending settlement as `needs_review`. Recover using the saved private request and original authorization. Publish only after `pass`.
+
+## Run a two-export pilot
+
+Attach this command to the buyer's existing successful export event. Give it the two files from that run and a dedicated private state directory on a persistent Linux or macOS worker. With no option it prepares the job locally. With `--quote` it sends the selected fields for a free quote. For paid runs use Node 24+, Python 3 and the x402 packages above.
+
+```sh
+python3 integrations/store-catalog-exporter/on_export.py \
+  products.json variants.csv "$PRIVATE_STATE/botsnacks-pilot" \
+  --policy "$BUYER_CONFIG/botsnacks-policy.mjs"
+```
+
+The policy module belongs to the buyer. It exports `async function authorize({job, amount, digest, network, payTo, currency})`. Return the buyer's existing authorized x402 EVM signer or `null` to decline. Amount is a string in six-decimal atomic units. For a small-export pilot the buyer can cap each approval at `10000` (0.01 test USDC). A signer needs an `address` and `signTypedData`; keep its key in the buyer's existing wallet system. Use this mode only for exports the buyer permits sending. Use separate state for each buyer.
+
+For example, a buyer that has already authorized these selected fields and at most 0.01 test USDC per report can connect its existing signer this way:
+
+```js
+import { catalogWallet } from './existing-buyer-wallet.mjs';
+
+export async function authorize({ amount, network, currency }) {
+  if (network !== 'eip155:84532' || currency !== 'test USDC' || BigInt(amount) > 10000n) return null;
+  return catalogWallet;
+}
+```
+
+The pilot reserves up to two distinct comparisons for the same wallet. The second file pair is a new comparison when its selected variant IDs, SKUs or price values differ. A reordered or redelivered pair with identical selected records reuses the saved report. An interrupted payment keeps its slot and original authorization for recovery. Preserve the state directory across restarts, including after an error. Run the Python entry point for every arrival so concurrent workers share the same lock.
+
+Stdout reports the decision, the public transaction ID and the private report file for a completed comparison. Exit 0 with `decision: pass` allows publication, exit 1 with `decision: hold` flags differences, and exit 2 means stop for review, decline or the pilot limit. A local preparation or free quote cannot authorize publication. An outside worker can corroborate two actual export events with the two transaction IDs from its own logs. Keep source files, report contents, request keys and signatures private.

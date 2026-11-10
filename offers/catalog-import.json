@@ -63,6 +63,14 @@
       "key": {"source": "id", "target": "id"},
       "fields": [{"source": "sku", "target": "sku", "type": "exact"}, {"source": "price", "target": "price", "type": "decimal"}]
     },
+    "two_export_pilot": {
+      "entry_point": "integrations/store-catalog-exporter/on_export.py",
+      "guide": "https://github.com/cozah123/botsnacks-csv-to-json/blob/main/integrations/store-catalog-exporter/README.md#run-a-two-export-pilot",
+      "trigger": "after each completed export on a buyer-owned persistent POSIX worker",
+      "default_mode": "offline_prepare",
+      "max_distinct_comparisons": 2,
+      "requires_buyer_policy_for_payment": true
+    },
     "checkout_module": "scripts/comparison.mjs",
     "decision_module": "integrations/store-catalog-exporter/decision.mjs",
     "decisions": ["pass", "hold", "needs_review"],

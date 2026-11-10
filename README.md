@@ -58,6 +58,8 @@ python3 scripts/catalog.py prepare-store-export supplier-feed.json exports/demo/
 
 An operator who permits sharing those fields can run `python3 scripts/catalog.py quote /private/batch/request.json` for the exact testnet price. A separately authorized buyer can use the same request to purchase and retrieve the report. [Buyer instructions](./SKILL.md#javascript-buyer)
 
+For two successive exports on a persistent worker, use the [two-export pilot](./integrations/store-catalog-exporter/README.md#run-a-two-export-pilot). It honors the buyer’s wallet policy and recovers duplicate arrivals from local state.
+
 For an existing GitHub Actions export job, an operator can add this step immediately after generating the CSV. Adding the step authorizes sending the selected fields for a free quote on each run. It exposes `price_test_usdc` and a private `request_path` to later steps on the same runner. Keep that file out of logs, caches and artifacts.
 
 ```yaml

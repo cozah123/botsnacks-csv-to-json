@@ -1,9 +1,10 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
+import { writePrivateJson } from "./private-json.mjs";
 import { createHash } from "node:crypto";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 
-export async function comparison(requestFile, signer, maxAtomic = 30000n, approvedQuote) {
+export async function comparison(requestFile, signer, maxAtomic = 30000n, approvedQuote, { recoverOnly = false } = {}) {
   const url = "https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform";
   const network = "eip155:84532";
   const receiver = "0x90b363b82bbffc5552d6635c8af959348117a7f3";
@@ -25,7 +26,8 @@ export async function comparison(requestFile, signer, maxAtomic = 30000n, approv
   if (saved && (saved.digest !== digest || typeof saved.signature !== "string" || !saved.signature))
     throw new Error("The saved authorization does not match this request.");
 
-  if (!saved || !signer) {
+  if (recoverOnly && !saved) return null;
+  if (!recoverOnly && (!saved || !signer)) {
     const quote = await post();
     if (quote.status !== 402) throw new Error("Quote returned HTTP " + quote.status);
     const client = new x402Client();
@@ -46,10 +48,12 @@ export async function comparison(requestFile, signer, maxAtomic = 30000n, approv
     if (!signature) throw new Error("Wallet returned no authorization.");
     saved = { digest, signature, amount: prices.get(offer.amount) };
     // Only the process which creates the file may submit its new signature.
-    await writeFile(proofFile, JSON.stringify(saved), { flag: "wx", mode: 0o600, flush: true });
+    await writePrivateJson(proofFile, saved, true);
   }
   const accepted = JSON.parse(Buffer.from(saved.signature, "base64").toString("utf8")).accepted;
-  if (!prices.has(accepted?.amount) || prices.get(accepted.amount) !== (saved.amount ?? "0.03"))
+  if (accepted?.network !== network || accepted?.scheme !== "exact" || accepted.asset?.toLowerCase() !== usdc ||
+      accepted.payTo?.toLowerCase() !== receiver || !prices.has(accepted.amount) ||
+      prices.get(accepted.amount) !== (saved.amount ?? "0.03"))
     throw new Error("Saved authorization amount does not match the quote.");
   if (typeof maxAtomic !== "bigint" || BigInt(accepted.amount) > maxAtomic)
     throw new Error("Saved authorization exceeds the current spending limit. Use the cached report or reconcile the original purchase.");

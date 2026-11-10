@@ -9,7 +9,7 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 
-function hash(value) {
+export function catalogHash(value) {
   return createHash('sha256').update(canonical(value)).digest('hex');
 }
 
@@ -18,7 +18,7 @@ export function shopifyDecision(job, result) {
   const { report, receipt } = result ?? {};
   if (!job || !report || !receipt || result.paid !== true || result.test_funds !== true ||
       receipt.network !== 'eip155:84532' || receipt.settlement?.success !== true ||
-      receipt.input_hash !== hash(job) || receipt.report_hash !== hash(report) ||
+      receipt.input_hash !== catalogHash(job) || receipt.report_hash !== catalogHash(report) ||
       report.issues_truncated !== false || !Array.isArray(report.issues) ||
       report.issue_count !== report.issues.length) return 'needs_review';
   if (report.status === 'issues_found' && report.issue_count > 0) return 'hold';
