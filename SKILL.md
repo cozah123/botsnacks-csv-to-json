@@ -117,7 +117,11 @@ In n8n, enter this fixed private URL and the buyer's existing HTTP authenticatio
 | Operation | Inputs | Result |
 | --- | --- | --- |
 | Prepare | Omit `checkout_action` | Local job, optional price lookup |
+| Quote the schedule | `checkout_action: "quote"`, stable batch ID | Sends the selected fields and returns the eligible price for free |
 | Buy | `checkout_action: "purchase"`, `batch_id: "festival-friday-v1"` | One eligible testnet comparison and its receipt |
 | Retrieve | `checkout_action: "retrieve"`, same batch ID and schedule | Saved report, or recovery using only the original authorization |
 
 A changed job with the same ID is rejected. For retries keep the same ID and data, including queue order. A new revision can be a new purchase only under the buyer's own policy. If the process stops while signing and leaves a signing marker with no saved authorization, hold the batch for reconciliation. Keep private storage for the required recovery period. Branch on `publish_ready === true` before any posting step. An unavailable buyer, a denied request, missing events, changed fields and pending settlement all leave the scheduler on hold.
+
+
+For a free schedule quote, the buyer's policy must approve sharing the selected fields. Return `{scope, allowQuote: true}` without a payment signer. Reuse the same batch ID and inputs to buy later. For your own QA runs, return `testRun: true` from trusted policy starting with the first request for a new batch. Default free quotes are anonymous. Only when the wallet owner explicitly opts into identification for this quote, the policy can also return `quoteSigner` with an existing EOA address and `signMessage`. It signs a short-lived, service- and job-specific identification message with no spending authority. The buyer's wallet address then becomes visible to BotSnacks for verification. Never take a signer or a test label from queued post content.

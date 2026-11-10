@@ -58,8 +58,7 @@ async function post(body, signature) {
       ...(signature ? {'PAYMENT-SIGNATURE':signature} : {})}, body});
 }
 
-async function sign(body, signer) {
-  const response = await post(body);
+async function readOffer(response) {
   if (response.status !== 402) throw Error('Expected an eligible job quote.');
   const client = new x402Client();
   const http = new x402HTTPClient(client);
@@ -72,11 +71,41 @@ async function sign(body, signer) {
       offer.extra?.name !== 'USDC' || offer.extra?.version !== '2' ||
       !Number.isInteger(offer.maxTimeoutSeconds) || offer.maxTimeoutSeconds <= 0 || offer.maxTimeoutSeconds > 300)
     throw Error('Unexpected payment terms.');
+  return {client,http,terms};
+}
+
+async function sign(body, signer) {
+  const {client,http,terms} = await readOffer(await post(body));
   registerExactEvmScheme(client, {signer, networks:[network]});
   const payload = await client.createPaymentPayload(terms);
   const signature = http.encodePaymentSignatureHeader(payload)['PAYMENT-SIGNATURE'];
   if (!signature) throw Error('No authorization returned.');
   return signature;
+}
+
+// Optional EIP-191 identification is separate from payment authorization.
+async function freeQuote(request, quoteSigner) {
+  let body = request.body;
+  if (quoteSigner) {
+    const input = JSON.parse(body);
+    const address = quoteSigner.address.toLowerCase();
+    const expires = Math.floor(Date.now()/1000) + 240;
+    const id = 'q_' + hash('botsnacks-public-test-v1:' + input.request_key);
+    const message = [
+      'BotSnacks free schedule quote identification',
+      'Service: ' + endpoint, 'Network: ' + network, 'Wallet: ' + address,
+      'Request: ' + id, 'Schedule digest: ' + request.jobHash,
+      'Expires (Unix seconds): ' + expires,
+      'This identifies a quote request only. No payment or spending permission.',
+    ].join('\n');
+    const signature = await quoteSigner.signMessage({message});
+    body = JSON.stringify({...input,quote_proof:{address,expires,signature}});
+    if (Buffer.byteLength(body) > 1000000) throw Error('Quote proof exceeds the request limit.');
+  }
+  let response = await post(body);
+  // A server without optional proof support may still provide the free quote.
+  if (quoteSigner && response.status === 422) response = await post(request.body);
+  await readOffer(response);
 }
 
 function validateResult(result, jobHash, payer) {
@@ -101,11 +130,11 @@ export function scheduleCheckout({directory, authorize}) {
       .json({status, ...extra});
     try {
       const {action, batch_id, job} = req.body ?? {};
-      if (!['purchase','retrieve'].includes(action) || typeof batch_id !== 'string' ||
+      if (!['quote','purchase','retrieve'].includes(action) || typeof batch_id !== 'string' ||
           !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,95}$/.test(batch_id) || !validJob(job))
         return reply(422,'invalid_batch');
-      const grant = await authorize(req, {action, batch_id, job, network, recipient:receiver, amount:'0.03'});
-      if (typeof grant?.scope !== 'string' || !grant.scope ||
+      const grant = await authorize(req, {action, batch_id, job, network, recipient:receiver, amount:action==='quote'?'0':'0.03'});
+      if (typeof grant?.scope !== 'string' || !grant.scope || (action === 'quote' && grant.allowQuote !== true) ||
           (action === 'purchase' && !/^0x[0-9a-f]{40}$/i.test(grant.signer?.address)))
         return reply(403,'buyer_policy_denied');
       const jobHash = hash(canonical(job));
@@ -114,13 +143,27 @@ export function scheduleCheckout({directory, authorize}) {
       let request = await existing(requestFile);
       if (!request) {
         if (action === 'retrieve') return reply(404,'no_saved_purchase');
-        const body = JSON.stringify({job, request_key:randomBytes(32).toString('base64url')});
+        const key = (grant.testRun === true ? 'bs_qa_' : '') + randomBytes(32).toString('base64url');
+        const body = JSON.stringify({job, request_key:key});
         if (Buffer.byteLength(body) > 1000000) return reply(422,'invalid_batch');
         await mkdir(folder,{recursive:true,mode:0o700});
-        request = await saveOnce(requestFile,{jobHash,payer:grant.signer.address.toLowerCase(),body});
+        request = await saveOnce(requestFile,{jobHash,body});
       }
-      if (request.jobHash !== jobHash || (action === 'purchase' &&
-          request.payer !== grant.signer.address.toLowerCase())) return reply(409,'batch_revision_conflict');
+      if (request.jobHash !== jobHash) return reply(409,'batch_revision_conflict');
+      if (action === 'quote') {
+        // The caller must separately approve sharing the data; no payment signer is used.
+        await freeQuote(request,grant.quoteSigner);
+        return reply(200,'schedule_quoted',{batch_id,network,amount:'0.03',currency:'test USDC',charged:false});
+      }
+      // Older request files already hold the approved payer. New batches bind it on first purchase.
+      const payerPath = join(folder,'payer.json');
+      let payer = request.payer ?? await existing(payerPath);
+      if (action === 'purchase') {
+        const wallet = grant.signer.address.toLowerCase();
+        payer ??= await saveOnce(payerPath,wallet);
+        if (payer !== wallet) return reply(409,'batch_revision_conflict');
+      }
+      if (!payer) return reply(409,'no_saved_authorization');
       const resultFile = join(folder,'result.json');
       const proofFile = join(folder,'authorization.json');
       let result = await existing(resultFile);
@@ -142,11 +185,11 @@ export function scheduleCheckout({directory, authorize}) {
         const paid = await post(request.body,proof.signature);
         if (paid.status !== 200) return reply(paid.status === 202 ? 202 : 502,'reconcile_original');
         const delivered = await paid.json();
-        validateResult(delivered,jobHash,request.payer);
+        validateResult(delivered,jobHash,payer);
         result = await saveOnce(resultFile,{quote_id:delivered.quote_id, mode:delivered.mode,
           test_funds:true,paid:true,report:delivered.report,receipt:delivered.receipt});
       }
-      validateResult(result,jobHash,request.payer);
+      validateResult(result,jobHash,payer);
       return reply(200,'report_ready',{batch_id,source:fromCache?'saved_report':'seller',
         quote_id:result.quote_id, report:result.report, receipt:result.receipt});
     } catch { return reply(503,'hold_and_reconcile'); }

@@ -8,7 +8,7 @@ Compare the official schedule with the posts a bot has queued. The report identi
 
 [Import Check Before You Post into n8n](https://raw.githubusercontent.com/cozah123/botsnacks-csv-to-json/main/Check-Before-You-Post.n8n.json). Run **Try the screening example** for a free, local preview. A scheduling bot can also call it as an n8n sub-workflow.
 
-Wallet-enabled schedulers can purchase and retrieve during the same run. [Connect the buyer's existing wallet](./SKILL.md#scheduling-bot-checkout). Pass `purchase` with a stable batch ID for a schedule revision, then `retrieve` with the same batch. Connect the social posting step only to a strict `publish_ready === true` check.
+A scheduler can request a free quote for a specific schedule with `checkout_action: "quote"` and a stable batch ID. This sends the selected fields and never makes a payment. Wallet-enabled schedulers can purchase and retrieve during the same run. [Connect the buyer's existing wallet](./SKILL.md#scheduling-bot-checkout). Pass `purchase` with a stable batch ID for a schedule revision, then `retrieve` with the same batch. Connect the social posting step only to a strict `publish_ready === true` check.
 
 ## Local use
 
