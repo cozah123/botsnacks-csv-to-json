@@ -10,6 +10,10 @@
   "price": {"amount": "0.03", "currency": "test USDC", "unit": "completed eligible comparison"},
   "inputs": {"key": "sku", "fields": {"price": "decimal", "currency": "exact"}, "scope": "Same catalog revision, variants, price basis and units in both exports."},
   "free_quote": "POST job and a private request_key with no payment signature. An eligible request returns HTTP 402 with the terms. Prefix keys for synthetic examples with bs_qa_.",
+  "practice_command": "python3 scripts/catalog.py practice",
+  "practice_clean_command": "python3 scripts/catalog.py practice --clean",
+  "practice_exit_codes": {"0": "pass", "1": "hold", "2": "no_verdict"},
+  "job_quote_command": "python3 scripts/catalog.py quote /private/batch/request.json",
   "example_command": "python3 scripts/catalog.py quote-example",
   "example_job": {
     "source": {"format": "csv", "data": "sku,price,currency\nSKU-001,19.99,USD\nSKU-002,8.50,USD\nSKU-003,14.00,EUR\n"},

@@ -30,6 +30,8 @@ python3 scripts/catalog.py quote-example
 python3 scripts/catalog.py prepare supplier.csv imported.json /private/batch-17/request.json
 ```
 
+For a free offline practice run, use `python3 scripts/catalog.py practice`. Read JSON from stdout and branch on exit `1` for a hold or `0` for a pass. Exercise the pass branch with `--clean`. Treat exit `2` as no verdict. To request only a free quote for a prepared file once the buyer permits sharing it, run `python3 scripts/catalog.py quote /private/batch-17/request.json`. This sends the saved body once and reports the server's exact price without using a wallet.
+
 The first command sends the bundled three-SKU sample for a free quote. Run the second independently for a real import in an existing private directory. Each input may be CSV or a JSON array. Name the columns `sku`, `price` and `currency`. Use text SKUs to preserve leading zeros, unformatted decimal prices and currency codes. Extra columns stay local. The private request is created once and can be reused.
 
 When the buyer permits sending the selected fields, use [the existing buyer](#javascript-buyer): `comparison(requestFile)` requests a free quote. Only a buyer authorized to spend 0.03 test USDC on this batch should call `comparison(requestFile, signer)`. Save the report and receipt. Repeat reads use the saved result or the same private body and original authorization.

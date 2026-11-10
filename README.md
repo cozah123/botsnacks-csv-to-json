@@ -18,6 +18,8 @@ python3 scripts/convert.py --prepare-crm-check /private/batch-17/request.json --
 
 **Did any prices change during my catalog import?** Run this after a supplier feed is converted and before the store publishes the catalog. In the three-product example, every SKU arrives, but SKU-001 changes from 19.99 USD to 199.90 USD. Reordered products and equivalent decimals such as 8.50 and 8.5 pass.
 
+**Test your bot locally.** Run `python3 scripts/catalog.py practice`. The planted price change returns structured JSON with `decision: "hold"` and exit code `1`. Run it with `--clean` for `pass` and exit code `0`. Exit `2` means the check could not finish. Both practice cases run offline for free.
+
 From this repository, request a **free testnet quote** for that example in one call. The command sends synthetic data and has no wallet or signing step.
 
 ```sh

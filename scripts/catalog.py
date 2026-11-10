@@ -6,7 +6,7 @@ import csv
 import json
 import secrets
 import sys
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -59,9 +59,40 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def quote_example(job):
-    sample = {"job": job, "request_key": "bs_qa_" + secrets.token_urlsafe(32)}
-    req = Request(ENDPOINT, data=json.dumps(sample).encode(), headers={
+def practice(job, clean):
+    """Run the local, synthetic catalog fixture only."""
+    source = convert_csv(job["source"]["data"].encode())
+    target = source if clean else job["target"]["data"]
+    findings = []
+    def by_sku(rows):
+        items = {row["sku"]: row for row in rows}
+        if len(items) != len(rows) or not items or not all(items):
+            raise ValueError("Practice fixture needs nonempty, unique SKUs.")
+        return items
+    before, after = by_sku(source), by_sku(target)
+    for sku in sorted(before.keys() | after.keys()):
+        if sku not in before or sku not in after:
+            findings.append({"code": "missing_record" if sku in before else "unexpected_record", "sku": sku})
+            continue
+        for field in ("price", "currency"):
+            left, right = before[sku][field], after[sku][field]
+            if field == "price":
+                a, b = Decimal(left), Decimal(right)
+                if not a.is_finite() or not b.is_finite():
+                    raise ValueError("Practice prices must be finite.")
+                changed = a != b
+            else:
+                changed = left != right
+            if changed:
+                findings.append({"code": "changed_value", "sku": sku, "field": field,
+                                 "source_value": left, "target_value": right})
+    print(json.dumps({"mode": "local_practice", "decision": "hold" if findings else "pass",
+                      "charged": False, "findings": findings}))
+    return 1 if findings else 0
+
+
+def request_quote(body):
+    req = Request(ENDPOINT, data=body, headers={
         "Content-Type": "application/json", "Accept": "application/json",
         "User-Agent": "BotSnacks-Catalog-Example/1.0",
     })
@@ -80,26 +111,46 @@ def quote_example(job):
     if not isinstance(resource, dict) or resource.get("url") != ENDPOINT or not isinstance(offers, list) or len(offers) != 1:
         raise ValueError("Unexpected catalog quote resource or number of offers.")
     offer = offers[0]
-    expected = {"network": "eip155:84532", "scheme": "exact", "amount": "30000",
+    expected = {"network": "eip155:84532", "scheme": "exact",
                 "asset": "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
                 "payTo": "0x90b363b82bbffc5552d6635c8af959348117a7f3"}
     if not isinstance(offer, dict) or any(str(offer.get(k)).lower() != v for k, v in expected.items()):
         raise ValueError("Unexpected network, price, token, recipient or payment scheme.")
-    print(json.dumps({"http": 402, "network": "Base Sepolia", "price_test_usdc": "0.03", "charged": False}))
+    amount = offer.get("amount")
+    if not isinstance(amount, str) or not amount.isascii() or not amount.isdigit() or len(amount) > 24 or int(amount) <= 0:
+        raise ValueError("Expected a positive atomic test USDC amount.")
+    price = format(Decimal(amount).scaleb(-6), "f").rstrip("0").rstrip(".")
+    print(json.dumps({"http": 402, "network": "Base Sepolia", "price_test_usdc": price, "charged": False}))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("quote-example", help="Send only the bundled synthetic example for an unsigned quote.")
+    demo = commands.add_parser("practice", help="Run a synthetic catalog check entirely offline.")
+    demo.add_argument("--clean", action="store_true", help="Use a matching target to exercise the pass branch.")
+    quote = commands.add_parser("quote", help="Send a prepared private request for a free quote; never signs or pays.")
+    quote.add_argument("request", type=Path)
     prep = commands.add_parser("prepare", help="Create a private request locally for a real import.")
     prep.add_argument("source", type=Path)
     prep.add_argument("target", type=Path)
     prep.add_argument("request", type=Path)
     args = parser.parse_args()
     example = json.loads(OFFER_PATH.read_text(encoding="utf-8"))["example_job"]
+    if args.command == "practice":
+        return practice(example, args.clean)
     if args.command == "quote-example":
-        quote_example(example)
+        sample = {"job": example, "request_key": "bs_qa_" + secrets.token_urlsafe(32)}
+        request_quote(json.dumps(sample).encode())
+        return
+    if args.command == "quote":
+        if args.request.stat().st_size > 1_000_000:
+            raise ValueError("The prepared request exceeds the service limit.")
+        body = args.request.read_bytes()
+        payload = json.loads(body)
+        if not isinstance(payload, dict) or set(payload) != {"job", "request_key"}:
+            raise ValueError("Select a prepared comparison request file.")
+        request_quote(body)
         return
     if args.source.samefile(args.target):
         raise ValueError("Choose the supplier snapshot and the output from the same import.")
@@ -116,6 +167,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
-    except (OSError, URLError, ValueError, csv.Error) as error:
-        sys.exit(str(error))
+        sys.exit(main())
+    except (OSError, URLError, ValueError, InvalidOperation, KeyError, TypeError, csv.Error) as error:
+        print(json.dumps({"decision": "no_verdict", "error": str(error), "charged": False}), file=sys.stderr)
+        sys.exit(2)
