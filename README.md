@@ -14,6 +14,18 @@ python3 scripts/convert.py --prepare-crm-check /private/batch-17/request.json --
 
 **Free job quote. One eligible report costs 0.03 test USDC on Base Sepolia.** Keep the request and original authorization to retrieve the same purchased report for free. [Machine-readable offer](./offers/crm-import.json) · [Quote and checkout instructions](./SKILL.md#reconcile-a-kept-intake-batch-with-its-crm-import)
 
+## Find price changes after a catalog import
+
+**Did any prices change during my catalog import?** Run this after a supplier feed is converted and before the store publishes the catalog. In the three-product example, every SKU arrives, but SKU-001 changes from 19.99 USD to 199.90 USD. Reordered products and equivalent decimals such as 8.50 and 8.5 pass.
+
+From this repository, request a **free testnet quote** for that example in one call. The command sends synthetic data and has no wallet or signing step.
+
+```sh
+python3 scripts/catalog.py quote-example
+```
+
+A buyer can use its own import and select only SKU, price and currency. One eligible report costs **0.03 test USDC on Base Sepolia**. [Machine-readable offer and expected example](./offers/catalog-import.json) · [Prepare a private import, buy and retrieve](./SKILL.md#check-prices-after-a-catalog-import)
+
 ## Check a schedule before posting
 
 Compare the official schedule with the posts a bot has queued. The report identifies missing events and changes to a start time, venue or ticket link. **0.03 test USDC per eligible completed comparison on Base Sepolia.**

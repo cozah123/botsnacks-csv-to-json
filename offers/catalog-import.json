@@ -1,0 +1,27 @@
+{
+  "name": "Find price changes after a catalog import",
+  "question": "Did any prices change during my catalog import?",
+  "buyer": "A catalog agent verifying one completed supplier-feed import before publication",
+  "endpoint": "https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform",
+  "method": "POST",
+  "protocol": "x402",
+  "network": "eip155:84532",
+  "testnet_only": true,
+  "price": {"amount": "0.03", "currency": "test USDC", "unit": "completed eligible comparison"},
+  "inputs": {"key": "sku", "fields": {"price": "decimal", "currency": "exact"}, "scope": "Same catalog revision, variants, price basis and units in both exports."},
+  "free_quote": "POST job and a private request_key with no payment signature. An eligible request returns HTTP 402 with the terms. Prefix keys for synthetic examples with bs_qa_.",
+  "example_command": "python3 scripts/catalog.py quote-example",
+  "example_job": {
+    "source": {"format": "csv", "data": "sku,price,currency\nSKU-001,19.99,USD\nSKU-002,8.50,USD\nSKU-003,14.00,EUR\n"},
+    "target": {"format": "json", "data": [
+      {"sku": "SKU-003", "price": "14", "currency": "EUR"},
+      {"sku": "SKU-001", "price": "199.90", "currency": "USD"},
+      {"sku": "SKU-002", "price": "8.5", "currency": "USD"}
+    ]},
+    "key": {"source": "sku", "target": "sku"},
+    "fields": [{"source": "price", "target": "price", "type": "decimal"}, {"source": "currency", "target": "currency", "type": "exact"}]
+  },
+  "expected_example": {"source_rows": 3, "target_rows": 3, "missing_rows": 0, "unexpected_rows": 0, "changed_values": 1, "issue": {"code": "changed_value", "key": "SKU-001", "source_field": "price", "source_value": "19.99", "target_value": "199.90"}},
+  "retrieval": "Read the saved report again, or recover using the identical request and original payment authorization.",
+  "instructions": "https://github.com/cozah123/botsnacks-csv-to-json/blob/main/SKILL.md#check-prices-after-a-catalog-import"
+}
