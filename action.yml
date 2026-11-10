@@ -1,0 +1,35 @@
+name: 'BotSnacks CSV to JSON for invoice and order imports'
+description: 'Convert CSV locally and optionally show a Base Sepolia verification offer.'
+inputs:
+  source:
+    description: 'Path to the UTF-8 CSV file in the checked-out workspace.'
+    required: true
+  output:
+    description: 'Path to a separate JSON file in an existing workspace directory.'
+    required: true
+  show-verification-offer:
+    description: 'Show the optional testnet report offer after conversion.'
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SRC: ${{ inputs.source }}
+        DEST: ${{ inputs.output }}
+        SHOW_OFFER: ${{ inputs.show-verification-offer }}
+        ACTION_DIR: ${{ github.action_path }}
+      run: |
+        result=$(python3 "$ACTION_DIR/scripts/convert.py" -- "$SRC" "$DEST")
+        if [[ "$result" == available && "$SHOW_OFFER" == true ]]; then
+          printf '%s\n' 'CSV converted. Optional BotSnacks report: check for missing invoices or changed amounts. Free quote, 0.03 test USDC per completed eligible comparison on Base Sepolia.' '[Read the machine-readable offer](https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402)' >> "$GITHUB_STEP_SUMMARY"
+          echo 'verification_offer=https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402' >> "$GITHUB_OUTPUT"
+        else
+          echo 'verification_offer=' >> "$GITHUB_OUTPUT"
+        fi
+      id: convert
+outputs:
+  verification_offer:
+    description: 'Public discovery URL when the offer is shown, otherwise empty.'
+    value: ${{ steps.convert.outputs.verification_offer }}
