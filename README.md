@@ -6,6 +6,8 @@ Turn an invoice or order export into a JSON array. IDs and amount strings keep t
 
 Count one ID match per row in the larger file and one additional check per selected field on that row. Up to 250 checks cost **0.01 test USDC**, 251 through 5,000 cost **0.03**, and larger eligible comparisons cost **0.05**. For example, matching 100 IDs costs 0.01, while checking the price and currency of those same 100 products costs 0.03. A free unsigned POST returns the exact price before a buyer signs. Retrieving the same purchased report is free. [Machine-readable pricing](https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402)
 
+A buyer can run the [AgentProcure two-order pilot](./integrations/agentprocure/README.md) to quote an actual job, authorize one 0.01 test-USDC purchase, and verify a second retrieval against the original on-chain receipt.
+
 ## Find missing form submissions after spam filtering or CRM import
 
 **Did any leads disappear?** Compare the submission IDs your filter marked **keep** with the IDs that reached your CRM in the **same completed import**. If 48 inquiries were kept and only 46 arrived, the report identifies the missing IDs. You can also check whether a routing status changed.
