@@ -63,6 +63,15 @@
       "key": {"source": "id", "target": "id"},
       "fields": [{"source": "sku", "target": "sku", "type": "exact"}, {"source": "price", "target": "price", "type": "decimal"}]
     },
+    "exporter_patch": {
+      "url": "https://raw.githubusercontent.com/cozah123/botsnacks-csv-to-json/main/integrations/store-catalog-exporter/BotSnacks-exporter-handoff.patch",
+      "sha256": "b74faff584d29944c82f05d44cbc56609e1df8737d905d501338f15fd758c39b",
+      "upstream": "https://github.com/Nir-Bhay/store-catalog-exporter",
+      "tested_upstream_commit": "ca8b4412610917e0323d3ae1b7d45f6bbabd7246",
+      "opt_in_flag": "--comparison-offer",
+      "output_field": "comparison_offer",
+      "network_during_conversion": "none"
+    },
     "two_export_pilot": {
       "entry_point": "integrations/store-catalog-exporter/on_export.py",
       "guide": "https://github.com/cozah123/botsnacks-csv-to-json/blob/main/integrations/store-catalog-exporter/README.md#run-a-two-export-pilot",

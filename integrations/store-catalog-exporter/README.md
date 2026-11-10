@@ -57,3 +57,17 @@ export async function authorize({ amount, network, currency }) {
 The pilot reserves up to two distinct comparisons for the same wallet. The second file pair is a new comparison when its selected variant IDs, SKUs or price values differ. A reordered or redelivered pair with identical selected records reuses the saved report. An interrupted payment keeps its slot and original authorization for recovery. Preserve the state directory across restarts, including after an error. Run the Python entry point for every arrival so concurrent workers share the same lock.
 
 Stdout reports the decision, the public transaction ID and the private report file for a completed comparison. Exit 0 with `decision: pass` allows publication, exit 1 with `decision: hold` flags differences, and exit 2 means stop for review, decline or the pilot limit. A local preparation or free quote cannot authorize publication. An outside worker can corroborate two actual export events with the two transaction IDs from its own logs. Keep source files, report contents, request keys and signatures private.
+
+## Get the offer from the exporter
+
+In your own checkout of Store Catalog Exporter at commit `ca8b4412610917e0323d3ae1b7d45f6bbabd7246`, apply the [optional exporter patch](./BotSnacks-exporter-handoff.patch). The [catalog offer](../../offers/catalog-import.json) includes its download URL and SHA-256. The [upstream license](./EXPORTER-LICENSE) accompanies the patch.
+
+From that exporter checkout, with `BOTSNACKS_KIT` set to the absolute path of this buyer kit:
+
+```sh
+patch_file="$BOTSNACKS_KIT/integrations/store-catalog-exporter/BotSnacks-exporter-handoff.patch"
+git apply --check "$patch_file" && git apply "$patch_file"
+python3 -m catalog_exporter convert examples/sample-feed.json --source https://store.example --output exports/demo --comparison-offer
+```
+
+A successful full-snapshot conversion can return a local `comparison_offer` with the two file paths and the buyer guide. The worker can pass those paths to the two-export pilot above. The stock upstream release has no such flag. This conversion step runs offline.

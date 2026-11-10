@@ -1,0 +1,102 @@
+diff --git a/README.md b/README.md
+index ced90f2..689a593 100644
+--- a/README.md
++++ b/README.md
+@@ -18,6 +18,8 @@ python -m catalog_exporter convert examples/sample-feed.json --source https://st
+ python -m catalog_exporter validate exports/demo/bundle.json
+ ```
+ 
++A catalog-sync worker can add `--comparison-offer` to `convert`. After a successful Shopify products.json conversion of the full snapshot, the JSON response can include the original file path, the generated `variants.csv` path and the BotSnacks two-export pilot guide. The handoff stays local. The buyer decides whether to send variant IDs, SKUs and prices for a Base Sepolia testnet quote and whether to buy a report.
++
+ The fictional fixture produces **2 products, 3 variants, 3 images and 1 product with video**. Its image/video URLs are placeholders, not downloadable assets. No network requests occur during `convert` or `validate`.
+ 
+ For an installed command, use a virtual environment and `python -m pip install .`, then replace `python -m catalog_exporter` with `catalog-export`. Source-folder commands work without installing anything. See `python -m catalog_exporter --help` and `python -m catalog_exporter export --help`.
+diff --git a/agent-contract.json b/agent-contract.json
+index 6a29265..4d72d9a 100644
+--- a/agent-contract.json
++++ b/agent-contract.json
+@@ -10,6 +10,7 @@
+     "convert": {"input": "Shopify catalog feed snapshot or canonical bundle", "network": "none", "writes": "local output folder"},
+     "validate": {"input": "canonical bundle.json and sibling Shopify CSV", "network": "none", "writes": "none", "scope": "local consistency only"}
+   },
++  "optional_comparison": {"command": "convert", "flag": "--comparison-offer", "stdout_field": "comparison_offer", "scope": "Completed full-scope Shopify products.json conversion of 1 to 5000 variants", "network_during_conversion": "none", "buyer_authorization": "Required separately before sending selected fields or paying for a report"},
+   "stdout": "JSON result",
+   "stderr": "progress or JSON fatal error",
+   "exit_codes": {"0": "requested extraction completed and local draft CSV valid; coverage may still be unknown or structured-data-only", "1": "fatal error", "2": "partial/limited export, failures or invalid import data; inspect artifacts", "130": "interrupted, cached responses retained"},
+diff --git a/catalog_exporter/cli.py b/catalog_exporter/cli.py
+index 6ae6066..b53e4ad 100644
+--- a/catalog_exporter/cli.py
++++ b/catalog_exporter/cli.py
+@@ -62,6 +62,8 @@ def parser():
+     export.add_argument("--max-media-mb", type=int, default=100)
+     convert = commands.add_parser("convert", help="Offline: rebuild exports from a product feed snapshot or canonical bundle.")
+     convert.add_argument("input", type=Path)
++    convert.add_argument("--comparison-offer", action="store_true",
++                         help="Include a local BotSnacks testnet handoff for an eligible Shopify products.json export.")
+     convert.add_argument("--source", help="Required for feed snapshots; canonical bundles carry their source.")
+     convert.add_argument("--media-input", type=Path, help="Optional [{handle,payload: product.js JSON}] companion snapshot.")
+     validate = commands.add_parser("validate", help="Verify local canonical data and generated Shopify CSV consistency.")
+@@ -111,6 +113,7 @@ def from_snapshot(args, config):
+                     errors.append({"stage": "media", "handle": product["handle"], "message": str(exc)})
+     selected_handles = {p["handle"] for p in products}
+     return source, "shopify", {"products": products, "collections": [], "memberships": [], "errors": errors,
++                                "products_envelope": isinstance(data, dict),
+                                 "raw": {"products": [p for p in raw if p.get("handle") in selected_handles],
+                                         "media": [r for r in raw_media if r.get("handle") in selected_handles]},
+                                 "coverage": {"catalog": {"status": "offline_snapshot", "reason": "Source completeness not verified."},
+@@ -187,8 +190,18 @@ def main(argv=None):
+             write_json(output / "report.json", report)
+         if args.zip:
+             zip_bundle(output)
+-        print(json.dumps({"output": str(output), **report}, ensure_ascii=False, indent=2))
+-        return 2 if report["known_incomplete"] or not report["shopify_csv_created"] else 0
++        complete = not report["known_incomplete"] and report["shopify_csv_created"]
++        response = {"output": str(output), **report}
++        if (args.command == "convert" and args.comparison_offer and complete and result.get("products_envelope")
++                and report["products"] == result["coverage"]["discovered_products"] and 0 < report["variants"] <= 5000):
++            response["comparison_offer"] = {
++                "service": "BotSnacks", "network": "eip155:84532",
++                "guide": "https://github.com/cozah123/botsnacks-csv-to-json/blob/8758e56b87e3d2a05f14ebdabbd4b02aa900a4a7/integrations/store-catalog-exporter/README.md#run-a-two-export-pilot",
++                "products": str(args.input.resolve()), "variants": str((output / "variants.csv").resolve()),
++                "fields": ["id", "sku", "price"],
++            }
++        print(json.dumps(response, ensure_ascii=False, indent=2))
++        return 0 if complete else 2
+     except (ExportError, OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+         print(json.dumps({"error": str(exc), "command": args.command}, ensure_ascii=False), file=sys.stderr)
+         return 1
+diff --git a/tests/test_exporter.py b/tests/test_exporter.py
+index 118069d..41027bb 100644
+--- a/tests/test_exporter.py
++++ b/tests/test_exporter.py
+@@ -40,6 +40,30 @@ def fixture_product():
+     return copy.deepcopy(read_json(ROOT / "examples/sample-feed.json")["products"][0])
+ 
+ 
++class ComparisonOfferTests(unittest.TestCase):
++    def test_completed_snapshot_offer_is_local_and_opt_in(self):
++        source = ROOT / "examples/sample-feed.json"
++        with tempfile.TemporaryDirectory() as folder:
++            output = Path(folder) / "out"
++            def run(snapshot, *extras):
++                stdout = io.StringIO()
++                with contextlib.redirect_stdout(stdout):
++                    code = main(["convert", str(snapshot), "--source", SOURCE, "--output", str(output), *extras])
++                return code, json.loads(stdout.getvalue())
++            self.assertNotIn("comparison_offer", run(source)[1])
++            code, result = run(source, "--comparison-offer")
++            self.assertEqual(code, 0)
++            self.assertEqual(Path(result["comparison_offer"]["products"]), source)
++            self.assertEqual(Path(result["comparison_offer"]["variants"]), output / "variants.csv")
++            self.assertNotIn("comparison_offer", run(output / "bundle.json", "--comparison-offer")[1])
++            array = Path(folder) / "array.json"
++            array.write_text(json.dumps(read_json(source)["products"]), encoding="utf-8")
++            self.assertNotIn("comparison_offer", run(array, "--comparison-offer")[1])
++            code, result = run(source, "--comparison-offer", "--max-products", "1")
++            self.assertEqual(code, 2)
++            self.assertNotIn("comparison_offer", result)
++
++
+ class ModelTests(unittest.TestCase):
+     def test_decimal_and_ajax_units(self):
+         self.assertEqual(amount("49.90"), "49.90")
