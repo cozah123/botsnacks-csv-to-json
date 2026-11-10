@@ -30,6 +30,25 @@
     "target": "Store Catalog Exporter variants.csv",
     "matched_by": "variant ID",
     "compared_fields": ["sku", "price"],
+    "question": "Did any prices or SKUs change during my Shopify export?",
+    "placement": "Add the step to the job that produces variants.csv, after a successful export and only for batches the operator permits sending to BotSnacks. Replace both example paths with files from that same export.",
+    "github_actions_step": {
+      "name": "Quote this Shopify export",
+      "id": "botsnacks_quote",
+      "uses": "cozah123/botsnacks-csv-to-json/integrations/store-catalog-exporter@4a8d5561b4bfe0af133ec96219bf08920216adac",
+      "with": {
+        "source": "supplier-feed.json",
+        "variants": "exports/demo/variants.csv"
+      }
+    },
+    "fields_sent": [
+      "id",
+      "sku",
+      "price"
+    ],
+    "wallet_required_for_quote": false,
+    "quote_cost_test_usdc": "0.00",
+    "purchase_guide": "https://github.com/cozah123/botsnacks-csv-to-json/blob/4a8d5561b4bfe0af133ec96219bf08920216adac/SKILL.md#javascript-buyer",
     "prepare_command": "python3 scripts/catalog.py prepare-store-export supplier-feed.json exports/demo/variants.csv /private/batch/request.json"
   },
   "job_quote_command": "python3 scripts/catalog.py quote /private/batch/request.json",
