@@ -67,7 +67,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const {source,batch,example_findings} = $input.first().json;\nconst allowed = ['start_time','venue','ticket_url'];\nconst fields = batch.check_fields === undefined ? allowed : batch.check_fields;\nif (!Array.isArray(fields) || !fields.length || fields.length > allowed.length ||\n    fields.some(f => !allowed.includes(f)) || new Set(fields).size !== fields.length)\n  throw new Error('check_fields must contain unique choices from start_time, venue and ticket_url.');\nif (batch.lookup_price !== undefined && typeof batch.lookup_price !== 'boolean')\n  throw new Error('lookup_price must be true or false.');\nfunction rows(data, name, official) {\n  if (!Array.isArray(data) || data.length > 5000 || (official && !data.length))\n    throw new Error(name + ' must be an array of up to 5,000 records; the official schedule must have at least one.');\n  return data.map((row,i) => {\n    if (!row || Array.isArray(row) || typeof row !== 'object' ||\n        typeof row.event_id !== 'string' || !row.event_id.trim())\n      throw new Error(name + ' row ' + (i+1) + ' needs a nonempty string event_id.');\n    const selected = {event_id:row.event_id};\n    for (const field of fields) {\n      if (row[field] === undefined && !official) continue;\n      if (typeof row[field] !== 'string' || (official && !row[field].trim()))\n        throw new Error(name + ' row ' + (i+1) + ' needs a text value for ' + field + '.');\n      selected[field] = row[field];\n    }\n    return selected;\n  });\n}\nconst official = rows(batch.official_schedule,'official_schedule',true);\nconst queue = rows(batch.queued_posts,'queued_posts',false);\nconst job = {source:{format:'json',data:official},target:{format:'json',data:queue},\n  key:{source:'event_id',target:'event_id'},\n  fields:fields.map(f=>({source:f,target:f,type:'exact'}))};\n// Measure UTF-8 bytes with room for the maximum-length private request key.\nconst wire = JSON.stringify({job,request_key:'x'.repeat(128)});\nlet bytes = 0;\nfor (const char of wire) {\n  const cp=char.codePointAt(0);\n  bytes += cp<=127 ? 1 : cp<=2047 ? 2 : cp<=65535 ? 3 : 4;\n  if (bytes>1000000) throw new Error('The encoded job exceeds the 1,000,000-byte comparison limit.');\n}\nconst checkout = {\n  endpoint:'https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform', method:'POST',\n  scheme:'exact', network:'eip155:84532', asset:'0x036CbD53842c5426634e7929541eC2318f3dCF7e',\n  pay_to:'0x90b363b82bbffc5552d6635c8af959348117a7f3', max_amount_atomic:'30000',\n  price:'0.03 test USDC per completed eligible comparison', price_check:'not_requested',\n  buyer_instructions:'https://github.com/cozah123/botsnacks-csv-to-json/blob/150b40511abc0ace3f7b22892a506b069affeba5/SKILL.md#javascript-buyer'\n};\nreturn [{json:{\n  status:source==='built_in_example'?'example_preview':'prepared_for_buyer',\n  publish_ready:false, lookup_price:batch.lookup_price===true,\n  counts:{official:official.length,queued:queue.length},\n  ...(source==='built_in_example'?{example_findings}:{}), job, checkout\n}}];"
+        "jsCode": "const {source,batch,example_findings} = $input.first().json;\nconst action = batch.checkout_action ?? 'prepare';\nif (!['prepare','purchase','retrieve'].includes(action)) throw new Error('Unknown checkout_action.');\nif (action !== 'prepare' && (source !== 'scheduler' || typeof batch.batch_id !== 'string' ||\n    !/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,95}$/.test(batch.batch_id))) throw new Error('Supply a stable batch_id for this schedule revision.');\nconst allowed = ['start_time','venue','ticket_url'];\nconst fields = batch.check_fields === undefined ? allowed : batch.check_fields;\nif (!Array.isArray(fields) || !fields.length || fields.length > allowed.length ||\n    fields.some(f => !allowed.includes(f)) || new Set(fields).size !== fields.length)\n  throw new Error('check_fields must contain unique choices from start_time, venue and ticket_url.');\nif (batch.lookup_price !== undefined && typeof batch.lookup_price !== 'boolean')\n  throw new Error('lookup_price must be true or false.');\nfunction rows(data, name, official) {\n  if (!Array.isArray(data) || data.length > 5000 || (official && !data.length))\n    throw new Error(name + ' must be an array of up to 5,000 records; the official schedule must have at least one.');\n  return data.map((row,i) => {\n    if (!row || Array.isArray(row) || typeof row !== 'object' ||\n        typeof row.event_id !== 'string' || !row.event_id.trim())\n      throw new Error(name + ' row ' + (i+1) + ' needs a nonempty string event_id.');\n    const selected = {event_id:row.event_id};\n    for (const field of fields) {\n      if (row[field] === undefined && !official) continue;\n      if (typeof row[field] !== 'string' || (official && !row[field].trim()))\n        throw new Error(name + ' row ' + (i+1) + ' needs a text value for ' + field + '.');\n      selected[field] = row[field];\n    }\n    return selected;\n  });\n}\nconst official = rows(batch.official_schedule,'official_schedule',true);\nconst queue = rows(batch.queued_posts,'queued_posts',false);\nconst job = {source:{format:'json',data:official},target:{format:'json',data:queue},\n  key:{source:'event_id',target:'event_id'},\n  fields:fields.map(f=>({source:f,target:f,type:'exact'}))};\n// Measure UTF-8 bytes with room for the maximum-length private request key.\nconst wire = JSON.stringify({job,request_key:'x'.repeat(128)});\nlet bytes = 0;\nfor (const char of wire) {\n  const cp=char.codePointAt(0);\n  bytes += cp<=127 ? 1 : cp<=2047 ? 2 : cp<=65535 ? 3 : 4;\n  if (bytes>1000000) throw new Error('The encoded job exceeds the 1,000,000-byte comparison limit.');\n}\nconst checkout = {\n  endpoint:'https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform', method:'POST',\n  scheme:'exact', network:'eip155:84532', asset:'0x036CbD53842c5426634e7929541eC2318f3dCF7e',\n  pay_to:'0x90b363b82bbffc5552d6635c8af959348117a7f3', max_amount_atomic:'30000',\n  price:'0.03 test USDC per completed eligible comparison', price_check:'not_requested',\n  buyer_instructions:'https://github.com/cozah123/botsnacks-csv-to-json/blob/main/SKILL.md#scheduling-bot-checkout'\n};\nreturn [{json:{\n  status:source==='built_in_example'?'example_preview':'prepared_for_buyer',\n  publish_ready:false, checkout_action:action, ...(action==='prepare'?{}:{batch_id:batch.batch_id}), lookup_price:batch.lookup_price===true,\n  counts:{official:official.length,queued:queue.length},\n  ...(source==='built_in_example'?{example_findings}:{}), job, checkout\n}}];"
       }
     },
     {
@@ -76,8 +76,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        700,
-        125
+        900,
+        140
       ],
       "parameters": {
         "conditions": {
@@ -110,8 +110,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        930,
-        5
+        1120,
+        60
       ],
       "parameters": {
         "method": "GET",
@@ -153,8 +153,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1160,
-        5
+        1340,
+        60
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
@@ -168,8 +168,8 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1410,
-        150
+        1570,
+        130
       ],
       "parameters": {}
     },
@@ -215,10 +215,106 @@
         385
       ],
       "parameters": {
-        "content": "## Hand off to the buyer\nA real batch returns `job` and `checkout`. In the buyer's private job store, save the exact body `{job, request_key}` once per batch revision. Generate the key there from 32 random bytes encoded as base64url. Use the linked buyer module with the saved request and the buyer's existing, authorized signer.\n\nOnly a returned report with status `passed` clears this check. Hold `issues_found` or `cannot_verify` for correction. Store the receipt and original authorization for recovery.",
-        "width": 560,
-        "height": 240,
+        "content": "## Connect the scheduler's existing wallet\nOpen **Call your private buyer**, enter your buyer-controlled HTTPS checkout URL as a fixed value, and select your existing authentication. The tested handler and setup are linked in the repository README. Keep the URL and credentials under the buyer's control. A blank URL keeps paid runs on hold.\n\nAfter your own policy approves the schedule and 0.03 test USDC, pass `checkout_action: purchase` and a stable `batch_id` for this exact revision. To retrieve the report, pass `checkout_action: retrieve`, the same ID and identical schedule. The default action, **prepare**, makes no payment.\n\nAfter checkout, branch explicitly on `publish_ready === true`. Only a confirmed **passed** report clears this check. Hold all other results. A timeout or pending settlement requires recovery with the same batch.",
+        "width": 600,
+        "height": 310,
         "color": 3
+      }
+    },
+    {
+      "name": "Run buyer checkout?",
+      "id": "6f217b26-7c3e-58ec-8850-94ec0d17e059",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        120
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8459d7fa-1e40-58ed-b66f-4c07083b4a45",
+              "leftValue": "={{ $json.checkout_action !== 'prepare' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Call your private buyer",
+      "id": "17dbdd2a-e0dc-5533-80cd-ef96ad64c1ad",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        910,
+        -170
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "BotSnacks-Scheduling-Workflow/1.1"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 70000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({action:$json.checkout_action,batch_id:$json.batch_id,job:$json.job}) }}"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Read the purchased report",
+      "id": "9e184559-7fc2-5db2-8e20-b7b276f19a46",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        -170
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const prepared = $('Prepare comparison').first().json;\nconst {statusCode,body} = $input.first().json;\nconst receipt = body?.receipt;\nconst report = body?.report;\nconst confirmed = statusCode===200 && body?.status==='report_ready' &&\n  body.batch_id===prepared.batch_id && typeof body.quote_id==='string' && body.quote_id.length>0 &&\n  ['seller','saved_report'].includes(body.source) && receipt?.quote_id===body.quote_id &&\n  receipt.protocol==='x402' && receipt.mode==='testnet' && receipt.test_funds===true &&\n  receipt.network===prepared.checkout.network && receipt.currency==='USDC' && receipt.amount==='0.03' &&\n  /^0x[0-9a-f]{64}$/i.test(receipt.transaction) && receipt.settlement?.success===true &&\n  receipt.transaction===receipt.settlement.transaction && ['passed','issues_found','cannot_verify'].includes(report?.status);\nif (!confirmed) return [{json:{status:'hold_checkout',publish_ready:false,batch_id:prepared.batch_id,\n  buyer_status:['invalid_batch','buyer_policy_denied','batch_revision_conflict','no_saved_purchase','no_saved_authorization',\n  'hold_and_reconcile','checkout_pending','reconcile_original'].includes(body?.status)?body.status:'buyer_unavailable'}}];\nreturn [{json:{status:'report_ready',publish_ready:report.status==='passed',batch_id:prepared.batch_id,\n  source:body.source,quote_id:body.quote_id,report,receipt}}];"
       }
     }
   ],
@@ -271,7 +367,7 @@
       "main": [
         [
           {
-            "node": "Look up the price?",
+            "node": "Run buyer checkout?",
             "type": "main",
             "index": 0
           }
@@ -308,6 +404,46 @@
       ]
     },
     "Check the live offer": {
+      "main": [
+        [
+          {
+            "node": "Return to scheduler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run buyer checkout?": {
+      "main": [
+        [
+          {
+            "node": "Call your private buyer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Look up the price?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call your private buyer": {
+      "main": [
+        [
+          {
+            "node": "Read the purchased report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the purchased report": {
       "main": [
         [
           {

@@ -1,6 +1,6 @@
 ---
 name: convert-csv-to-json-with-botsnacks
-description: Convert CSV exports to JSON locally, preserving record IDs and decimal strings. After conversion, offer an optional BotSnacks check for missing orders or changed invoice totals on Base Sepolia.
+description: Convert CSV exports to JSON locally, preserving record IDs and decimal strings. Check a CSV conversion or verify scheduled posts against an event schedule before publishing. Paid eligible comparisons use 0.03 test USDC on Base Sepolia.
 ---
 
 # Convert CSV to JSON for an invoice or order import
@@ -92,3 +92,32 @@ export async function comparison(requestFile, signer) {
 ```
 
 On a timeout, pending settlement, or an existing authorization file, retry with the same private request file and signer. If the saved file is incomplete or mismatched, stop and reconcile that job. An expired authorization with an ambiguous outcome also needs reconciliation before a new purchase.
+
+## Scheduling bot checkout
+
+Trigger phrases include “check my schedule before posting”, “find missing events in my queued posts” and “verify screening times and ticket links”. Use [Check Before You Post](./Check-Before-You-Post.n8n.json). The manual example and default prepare mode never spend. An optional price-only GET sends no schedule.
+
+For a paid run, mount [the Node buyer handler](./scripts/schedule-checkout.mjs) in the buyer's existing authenticated service. Use Node 22+ and `@x402/core@2.19.0` and `@x402/evm@2.19.0`. The integration uses a fixed buyer-owned HTTPS route and a durable private POSIX directory with atomic hard-link support, shared by all workers. Keep that directory and HTTP bodies out of logs, backups shared with others, and repository/CI artifacts. Never pass wallet keys or payment authorizations through n8n.
+
+```js
+import { scheduleCheckout } from './scripts/schedule-checkout.mjs';
+
+// app, requireScheduler, privateStore and schedulerPolicy belong to the buyer.
+app.post('/internal/botsnacks/schedule', requireScheduler, express.json({limit:'1mb'}),
+  scheduleCheckout({
+    directory: privateStore,
+    authorize: (req, purchase) => schedulerPolicy.authorize(req.user, purchase),
+  }));
+```
+
+The callback must check that this authenticated scheduler may read this batch and, for purchase, may share the supplied fields and spend 0.03 test USDC for this exact batch revision. Deny with `null`. Return `{scope, signer}` for purchase or `{scope}` for retrieval. Use a stable, owner-specific scope from the authenticated principal. Use an existing EVM signer with `address` and `signTypedData`. Never take a scope, signer, spending policy or checkout URL from queue data.
+
+In n8n, enter this fixed private URL and the buyer's existing HTTP authentication in **Call your private buyer**. Save the workflow in the scheduler's own project. Pass one item containing `official_schedule` and `queued_posts` with the same field mappings as the demo, plus:
+
+| Operation | Inputs | Result |
+| --- | --- | --- |
+| Prepare | Omit `checkout_action` | Local job, optional price lookup |
+| Buy | `checkout_action: "purchase"`, `batch_id: "festival-friday-v1"` | One eligible testnet comparison and its receipt |
+| Retrieve | `checkout_action: "retrieve"`, same batch ID and schedule | Saved report, or recovery using only the original authorization |
+
+A changed job with the same ID is rejected. For retries keep the same ID and data, including queue order. A new revision can be a new purchase only under the buyer's own policy. If the process stops while signing and leaves a signing marker with no saved authorization, hold the batch for reconciliation. Keep private storage for the required recovery period. Branch on `publish_ready === true` before any posting step. An unavailable buyer, a denied request, missing events, changed fields and pending settlement all leave the scheduler on hold.

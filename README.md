@@ -2,6 +2,14 @@
 
 Turn an invoice or order export into a JSON array. IDs and amount strings keep their original spelling. Conversion requires only Python 3.9 or later. The optional verification service uses Base Sepolia test USDC.
 
+## Check a schedule before posting
+
+Compare the official schedule with the posts a bot has queued. The report identifies missing events and changes to a start time, venue or ticket link. **0.03 test USDC per eligible completed comparison on Base Sepolia.**
+
+[Import Check Before You Post into n8n](https://raw.githubusercontent.com/cozah123/botsnacks-csv-to-json/main/Check-Before-You-Post.n8n.json). Run **Try the screening example** for a free, local preview. A scheduling bot can also call it as an n8n sub-workflow.
+
+Wallet-enabled schedulers can purchase and retrieve during the same run. [Connect the buyer's existing wallet](./SKILL.md#scheduling-bot-checkout). Pass `purchase` with a stable batch ID for a schedule revision, then `retrieve` with the same batch. Connect the social posting step only to a strict `publish_ready === true` check.
+
 ## Local use
 
 ```sh
