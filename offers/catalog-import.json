@@ -58,7 +58,14 @@
     ],
     "wallet_required_for_quote": false,
     "quote_cost_test_usdc": "0.00",
-    "purchase_guide": "https://github.com/cozah123/botsnacks-csv-to-json/blob/4a8d5561b4bfe0af133ec96219bf08920216adac/SKILL.md#javascript-buyer",
+    "purchase_guide": "https://github.com/cozah123/botsnacks-csv-to-json/blob/main/integrations/store-catalog-exporter/README.md",
+    "job_mapping": {
+      "key": {"source": "id", "target": "id"},
+      "fields": [{"source": "sku", "target": "sku", "type": "exact"}, {"source": "price", "target": "price", "type": "decimal"}]
+    },
+    "checkout_module": "scripts/comparison.mjs",
+    "decision_module": "integrations/store-catalog-exporter/decision.mjs",
+    "decisions": ["pass", "hold", "needs_review"],
     "prepare_command": "python3 scripts/catalog.py prepare-store-export supplier-feed.json exports/demo/variants.csv /private/batch/request.json"
   },
   "job_quote_command": "python3 scripts/catalog.py quote /private/batch/request.json",
