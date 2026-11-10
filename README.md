@@ -6,7 +6,21 @@ Turn an invoice or order export into a JSON array. IDs and amount strings keep t
 
 Count one ID match per row in the larger file and one additional check per selected field on that row. Up to 250 checks cost **0.01 test USDC**, 251 through 5,000 cost **0.03**, and larger eligible comparisons cost **0.05**. For example, matching 100 IDs costs 0.01, while checking the price and currency of those same 100 products costs 0.03. A free unsigned POST returns the exact price before a buyer signs. Retrieving the same purchased report is free. [Machine-readable pricing](https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402)
 
-A buyer can run the [AgentProcure two-order pilot](./integrations/agentprocure/README.md) to quote an actual job, authorize one 0.01 test-USDC purchase, and verify a second retrieval against the original on-chain receipt.
+## Test your agent’s checkout
+
+Can your bot catch a dropped order and a changed total? The sample drops order B and changes order A from 12.00 to 10.00. A quote is free. A completed sample report costs **0.01 test USDC on Base Sepolia**, and retrieving the same purchased report is free.
+
+**Get a quote with Lucid Agents.** From this repository, run the following commands with Bun 1.3.13. The example uses `@lucid-agents/payments@2.5.0` to decode the live quote and check the quoted amount and recipient against a one-cent buyer policy. It sends a QA-marked, unsigned request containing only the two fictional orders.
+
+```sh
+cd integrations/lucid-agents
+bun install --frozen-lockfile --ignore-scripts
+bun run quote.mjs
+```
+
+A successful run prints `{"status":"quoted","network":"eip155:84532","price_test_usdc":"0.01","signed":false,"charged":false}`. This command ends at the quote and requires no wallet.
+
+**Buy the sample report.** A buyer whose own policy authorizes this test can use the [one-purchase and free-retrieval instructions](./integrations/agentprocure/README.md#buy-and-retrieve) from the [two-order pilot](./integrations/agentprocure/README.md). That separate runner uses Node.js 24+ and the buyer’s own Base Sepolia signer. It creates a fresh private request, checks both findings, verifies the on-chain transfer, and retrieves the same report again. Retain its private state for recovery.
 
 ## Find missing form submissions after spam filtering or CRM import
 

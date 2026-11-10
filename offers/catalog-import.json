@@ -19,7 +19,17 @@
     "wallet_required_for_quote": false,
     "quote_cost_test_usdc": "0.00",
     "purchase_price_test_usdc": "0.01",
-    "network": "eip155:84532"
+    "network": "eip155:84532",
+    "lucid_quote": {
+      "guide_url": "https://github.com/cozah123/botsnacks-csv-to-json/blob/main/README.md#test-your-agents-checkout",
+      "working_directory": "integrations/lucid-agents",
+      "tested_runtime": "Bun 1.3.13",
+      "package": "@lucid-agents/payments@2.5.0",
+      "install_command": "bun install --frozen-lockfile --ignore-scripts",
+      "quote_command": "bun run quote.mjs",
+      "wallet_required": false,
+      "signs_or_pays": false
+    }
   },
   "free_quote": "POST job and a private request_key with no payment signature. An eligible request returns HTTP 402 with the terms. Prefix keys for synthetic examples with bs_qa_.",
   "practice_command": "python3 scripts/catalog.py practice",

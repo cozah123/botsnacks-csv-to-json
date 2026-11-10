@@ -1,0 +1,9 @@
+{
+  "name": "botsnacks-lucid-quote",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@lucid-agents/payments": "2.5.0"
+  }
+}
