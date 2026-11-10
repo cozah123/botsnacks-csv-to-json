@@ -2,6 +2,18 @@
 
 Turn an invoice or order export into a JSON array. IDs and amount strings keep their original spelling. Conversion requires only Python 3.9 or later. The optional verification service uses Base Sepolia test USDC.
 
+## Find missing form submissions after spam filtering or CRM import
+
+**Did any leads disappear?** Compare the submission IDs your filter marked **keep** with the IDs that reached your CRM in the **same completed import**. If 48 inquiries were kept and only 46 arrived, the report identifies the missing IDs. You can also check whether a routing status changed.
+
+An intake bot can prepare the comparison locally. Use an existing private directory and opaque IDs from both exports. The preparation step selects only `submission_id` by default. Either input can be CSV or a JSON array.
+
+```sh
+python3 scripts/convert.py --prepare-crm-check /private/batch-17/request.json -- kept.csv crm.json
+```
+
+**Free job quote. One eligible report costs 0.03 test USDC on Base Sepolia.** Keep the request and original authorization to retrieve the same purchased report for free. [Machine-readable offer](./offers/crm-import.json) · [Quote and checkout instructions](./SKILL.md#reconcile-a-kept-intake-batch-with-its-crm-import)
+
 ## Check a schedule before posting
 
 Compare the official schedule with the posts a bot has queued. The report identifies missing events and changes to a start time, venue or ticket link. **0.03 test USDC per eligible completed comparison on Base Sepolia.**

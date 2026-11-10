@@ -1,0 +1,21 @@
+{
+  "name": "Find missing form submissions after spam filtering or CRM import",
+  "buyer": "An intake or CRM import agent reconciling one completed batch",
+  "endpoint": "https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform",
+  "method": "POST",
+  "protocol": "x402",
+  "network": "eip155:84532",
+  "testnet_only": true,
+  "price": {"amount": "0.03", "currency": "test USDC", "unit": "completed eligible comparison"},
+  "inputs": {"source": "Submissions marked keep in the batch", "target": "Records from the same completed CRM import", "key": "submission_id", "optional_fields": ["routing_status"]},
+  "free_quote": "POST the job and a fresh private request_key without a payment signature. HTTP 402 contains the terms.",
+  "result": "Missing and unexpected IDs, and changes to any selected routing-status field. Read summary and issues_truncated when processing findings.",
+  "retrieval": "Reuse the saved report or the identical request and original payment authorization.",
+  "instructions": "https://github.com/cozah123/botsnacks-csv-to-json/blob/main/SKILL.md#reconcile-a-kept-intake-batch-with-its-crm-import",
+  "example_job": {
+    "source": {"format":"json", "data":[{"submission_id":"sub_001"},{"submission_id":"sub_002"},{"submission_id":"sub_003"}]},
+    "target": {"format":"json", "data":[{"submission_id":"sub_001"},{"submission_id":"sub_003"}]},
+    "key": {"source":"submission_id", "target":"submission_id"},
+    "fields": []
+  }
+}

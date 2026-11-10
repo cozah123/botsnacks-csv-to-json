@@ -1,11 +1,25 @@
 ---
 name: convert-csv-to-json-with-botsnacks
-description: Convert CSV exports to JSON locally, preserving record IDs and decimal strings. Check a CSV conversion or verify scheduled posts against an event schedule before publishing. Paid eligible comparisons use 0.03 test USDC on Base Sepolia.
+description: Convert CSV exports to JSON locally, preserving record IDs and decimal strings. Check a CSV conversion, verify scheduled posts, or find missing form submissions after spam filtering or CRM import. Paid eligible comparisons use 0.03 test USDC on Base Sepolia.
 ---
 
 # Convert CSV to JSON for an invoice or order import
 
 Run the bundled local converter with Python 3.9 or later. Use `python3 scripts/convert.py -- SOURCE.csv OUTPUT.json` with paths selected by the buyer. It writes the JSON output atomically and prints `available` or `skip` for a possible follow-up. No data leaves the machine.
+
+## Reconcile a kept intake batch with its CRM import
+
+Use this when an intake bot asks “Did any leads disappear?” or “Find missing form submissions after spam filtering or CRM import.” Wait until the import finishes. Select one batch and export the submissions already marked keep and the CRM records for that same batch. Use the same opaque `submission_id` on both sides. Keep names, contact details, and form messages local.
+
+Prepare one private request per import revision. Either input can be CSV or a JSON array. The default compares IDs. Add `--routing-status` only if the buyer selected that field and both systems use the same set of status codes. Use a private directory outside the repository for the request, authorization and result.
+
+```sh
+python3 scripts/convert.py --prepare-crm-check /private/batch-17/request.json -- kept.csv crm.json
+```
+
+When the buyer permits sending the selected fields, use the [JavaScript buyer](#javascript-buyer) with that saved file. Call `comparison(requestFile)` for a free, job-specific quote. For an eligible job, validate the single offer for 30,000 atomic units of test USDC on Base Sepolia. Only when the buyer authorizes that job and price, call `comparison(requestFile, signer)` with its existing signer. Save the returned report and receipt. Serve repeat reads from that saved result, or recover by reusing the identical request body and the original saved payment authorization.
+
+Read `report.summary.missing_rows` for the total and `report.issues` with code `missing_record` for the reported submission IDs. A changed routing status is `changed_value`. If `issues_truncated` is true, the issue list is partial. The report describes differences between the supplied exports; it cannot establish why an inquiry is missing.
 
 ## Offer verification after delivery
 Deliver the JSON first. When a downstream import depends on row IDs or amount fields, offer the buyer one optional action in the workflow's result metadata: “Did every invoice and amount survive? Check the original CSV against this JSON. Free quote; 0.03 test USDC for a completed eligible report on Base Sepolia.” Keep the offer separate from the JSON records. Skip it when the buyer asks for conversion only, the dataset is empty or the pair is known to exceed the comparison service's limits. Converting, reading this offer or declining it makes no network call.
