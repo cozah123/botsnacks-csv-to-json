@@ -1,0 +1,332 @@
+{
+  "name": "BotSnacks · Check Before You Post",
+  "nodes": [
+    {
+      "name": "Try the screening example",
+      "id": "0c13873d-bbee-5d64-9f33-ce312be75866",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Two fictional screenings",
+      "id": "cf4f6f0b-ed8c-5dd8-aca8-e414bf6dbc68",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        230,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const official_schedule = [\n  {event_id:'FRI', start_time:'19:00', venue:'Grand Cinema', ticket_url:'https://example.org/friday'},\n  {event_id:'SAT', start_time:'18:00', venue:'Grand Cinema', ticket_url:'https://example.org/saturday'},\n];\nconst queued_posts = [{...official_schedule[0], start_time:'20:00'}];\nconst check_fields = ['start_time','venue','ticket_url'];\nconst example_findings = [];\nfor (const expected of official_schedule) {\n  const queued = queued_posts.find(row => row.event_id === expected.event_id);\n  if (!queued) {\n    example_findings.push({event_id:expected.event_id, issue:'missing_from_queue'});\n    continue;\n  }\n  for (const field of check_fields) {\n    if (expected[field] !== queued[field]) example_findings.push({\n      event_id:expected.event_id, issue:'changed_field', field,\n      official:expected[field], queued:queued[field],\n    });\n  }\n}\nreturn [{json:{source:'built_in_example', batch:{official_schedule,queued_posts,check_fields},\n  example_findings}}];"
+      }
+    },
+    {
+      "name": "From a scheduling bot",
+      "id": "ec3d1946-7db4-5a83-b6c7-afb23e03d01f",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        240
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "name": "Read one batch",
+      "id": "839d9547-ef01-50ff-988e-895ddf42976a",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        230,
+        240
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\nif (items.length !== 1) throw new Error('Group one official schedule and one queue into one input item per batch.');\nreturn [{json:{source:'scheduler', batch:items[0].json}}];"
+      }
+    },
+    {
+      "name": "Prepare comparison",
+      "id": "d27151e1-447c-5dc0-9e1c-f05675a5a7ab",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        475,
+        125
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const {source,batch,example_findings} = $input.first().json;\nconst allowed = ['start_time','venue','ticket_url'];\nconst fields = batch.check_fields === undefined ? allowed : batch.check_fields;\nif (!Array.isArray(fields) || !fields.length || fields.length > allowed.length ||\n    fields.some(f => !allowed.includes(f)) || new Set(fields).size !== fields.length)\n  throw new Error('check_fields must contain unique choices from start_time, venue and ticket_url.');\nif (batch.lookup_price !== undefined && typeof batch.lookup_price !== 'boolean')\n  throw new Error('lookup_price must be true or false.');\nfunction rows(data, name, official) {\n  if (!Array.isArray(data) || data.length > 5000 || (official && !data.length))\n    throw new Error(name + ' must be an array of up to 5,000 records; the official schedule must have at least one.');\n  return data.map((row,i) => {\n    if (!row || Array.isArray(row) || typeof row !== 'object' ||\n        typeof row.event_id !== 'string' || !row.event_id.trim())\n      throw new Error(name + ' row ' + (i+1) + ' needs a nonempty string event_id.');\n    const selected = {event_id:row.event_id};\n    for (const field of fields) {\n      if (row[field] === undefined && !official) continue;\n      if (typeof row[field] !== 'string' || (official && !row[field].trim()))\n        throw new Error(name + ' row ' + (i+1) + ' needs a text value for ' + field + '.');\n      selected[field] = row[field];\n    }\n    return selected;\n  });\n}\nconst official = rows(batch.official_schedule,'official_schedule',true);\nconst queue = rows(batch.queued_posts,'queued_posts',false);\nconst job = {source:{format:'json',data:official},target:{format:'json',data:queue},\n  key:{source:'event_id',target:'event_id'},\n  fields:fields.map(f=>({source:f,target:f,type:'exact'}))};\n// Measure UTF-8 bytes with room for the maximum-length private request key.\nconst wire = JSON.stringify({job,request_key:'x'.repeat(128)});\nlet bytes = 0;\nfor (const char of wire) {\n  const cp=char.codePointAt(0);\n  bytes += cp<=127 ? 1 : cp<=2047 ? 2 : cp<=65535 ? 3 : 4;\n  if (bytes>1000000) throw new Error('The encoded job exceeds the 1,000,000-byte comparison limit.');\n}\nconst checkout = {\n  endpoint:'https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform', method:'POST',\n  scheme:'exact', network:'eip155:84532', asset:'0x036CbD53842c5426634e7929541eC2318f3dCF7e',\n  pay_to:'0x90b363b82bbffc5552d6635c8af959348117a7f3', max_amount_atomic:'30000',\n  price:'0.03 test USDC per completed eligible comparison', price_check:'not_requested',\n  buyer_instructions:'https://github.com/cozah123/botsnacks-csv-to-json/blob/150b40511abc0ace3f7b22892a506b069affeba5/SKILL.md#javascript-buyer'\n};\nreturn [{json:{\n  status:source==='built_in_example'?'example_preview':'prepared_for_buyer',\n  publish_ready:false, lookup_price:batch.lookup_price===true,\n  counts:{official:official.length,queued:queue.length},\n  ...(source==='built_in_example'?{example_findings}:{}), job, checkout\n}}];"
+      }
+    },
+    {
+      "name": "Look up the price?",
+      "id": "61fe31aa-4482-57f5-9521-0f3984a1e229",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        125
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9774ab0a-35e6-5811-a372-47ac4d35c7d4",
+              "leftValue": "={{ $json.lookup_price }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Get the public price",
+      "id": "24d6ca08-f8a7-577e-a7a1-04cfc24f2b2c",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        930,
+        5
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "BotSnacks-Schedule-Quote/1.0"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 18000,
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Check the live offer",
+      "id": "682a28ec-4ffc-52d3-ae85-0a48a901388e",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        5
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const prepared = $('Prepare comparison').first().json;\nconst {body,statusCode} = $input.first().json;\nconst expected = prepared.checkout;\nconst offers = body?.accepts;\nconst offer = Array.isArray(offers) && offers.length===1 ? offers[0] : null;\nconst matches = statusCode===402 && body?.x402Version===2 && body?.resource?.url===expected.endpoint &&\n  offer?.scheme===expected.scheme && offer?.network===expected.network &&\n  offer?.amount===expected.max_amount_atomic && typeof offer?.asset==='string' &&\n  offer.asset.toLowerCase()===expected.asset.toLowerCase() && typeof offer.payTo==='string' &&\n  offer.payTo.toLowerCase()===expected.pay_to &&\n  (offer.extra?.assetTransferMethod === undefined || offer.extra.assetTransferMethod==='eip3009');\nreturn [{json:{...prepared,status:matches?'price_confirmed':'hold_price_unverified',\n  checkout:{...expected,price_check:matches?'verified':'unverified'}, publish_ready:false}}];"
+      }
+    },
+    {
+      "name": "Return to scheduler",
+      "id": "b7149a3c-0861-5a27-8a64-22a89c6aaf83",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1410,
+        150
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "Example guide",
+      "id": "6bc78ccb-5faf-5bc8-823c-cfe6b1baf0fc",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -15,
+        -215
+      ],
+      "parameters": {
+        "content": "## Try the free example\nRun **Try the screening example**. Open **Return to scheduler** to see the Friday time change and the missing Saturday screening. The example runs locally.",
+        "width": 395,
+        "height": 150,
+        "color": 5
+      }
+    },
+    {
+      "name": "Input guide",
+      "id": "9e438046-f3d1-5ba3-92bb-4a339abfeb16",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -15,
+        460
+      ],
+      "parameters": {
+        "content": "## Connect a scheduling workflow\nFor scheduled runs, publish this workflow inside the scheduler's own n8n project. Call it with **Execute Sub-workflow** before the social posting step. Pass one item with two arrays: `official_schedule` and `queued_posts`. Each row uses `event_id` and the same structured field names in both arrays. Use one row per event on one channel; group separate channels or runs first.\n\nUse `check_fields` to select `start_time`, `venue`, or `ticket_url` (default: all three). Dates, times, and time zones must use the same format. Set `lookup_price: true` for a free live price check; only the public URL is requested.",
+        "width": 575,
+        "height": 265,
+        "color": 4
+      }
+    },
+    {
+      "name": "Checkout guide",
+      "id": "3ac09b1a-21f1-565a-abf7-f0dd3d01aad1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        930,
+        385
+      ],
+      "parameters": {
+        "content": "## Hand off to the buyer\nA real batch returns `job` and `checkout`. In the buyer's private job store, save the exact body `{job, request_key}` once per batch revision. Generate the key there from 32 random bytes encoded as base64url. Use the linked buyer module with the saved request and the buyer's existing, authorized signer.\n\nOnly a returned report with status `passed` clears this check. Hold `issues_found` or `cannot_verify` for correction. Store the receipt and original authorization for recovery.",
+        "width": 560,
+        "height": 240,
+        "color": 3
+      }
+    }
+  ],
+  "connections": {
+    "Try the screening example": {
+      "main": [
+        [
+          {
+            "node": "Two fictional screenings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Two fictional screenings": {
+      "main": [
+        [
+          {
+            "node": "Prepare comparison",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From a scheduling bot": {
+      "main": [
+        [
+          {
+            "node": "Read one batch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read one batch": {
+      "main": [
+        [
+          {
+            "node": "Prepare comparison",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare comparison": {
+      "main": [
+        [
+          {
+            "node": "Look up the price?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Look up the price?": {
+      "main": [
+        [
+          {
+            "node": "Get the public price",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return to scheduler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get the public price": {
+      "main": [
+        [
+          {
+            "node": "Check the live offer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check the live offer": {
+      "main": [
+        [
+          {
+            "node": "Return to scheduler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveManualExecutions": false,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveExecutionProgress": false
+  },
+  "pinData": {}
+}
