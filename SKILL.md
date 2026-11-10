@@ -1,6 +1,6 @@
 ---
 name: convert-csv-to-json-with-botsnacks
-description: Convert CSV exports to JSON locally, preserving record IDs and decimal strings. Check a CSV conversion, verify scheduled posts, find missing form submissions after CRM import, or check prices after a catalog import. Paid eligible comparisons use 0.03 test USDC on Base Sepolia.
+description: Convert CSV exports to JSON locally, preserving record IDs and decimal strings. Check a CSV conversion, verify scheduled posts, find missing form submissions after CRM import, or check prices after a catalog import. Request the exact eligible comparison price in test USDC on Base Sepolia.
 ---
 
 # Convert CSV to JSON for an invoice or order import
@@ -17,7 +17,7 @@ Prepare one private request per import revision. Either input can be CSV or a JS
 python3 scripts/convert.py --prepare-crm-check /private/batch-17/request.json -- kept.csv crm.json
 ```
 
-When the buyer permits sending the selected fields, use the [JavaScript buyer](#javascript-buyer) with that saved file. Call `comparison(requestFile)` for a free, job-specific quote. For an eligible job, validate the single offer for 30,000 atomic units of test USDC on Base Sepolia. Only when the buyer authorizes that job and price, call `comparison(requestFile, signer)` with its existing signer. Save the returned report and receipt. Serve repeat reads from that saved result, or recover by reusing the identical request body and the original saved payment authorization.
+When the buyer permits sending the selected fields, use the [JavaScript buyer](#javascript-buyer) with that saved file. Call `comparison(requestFile)` for a free, job-specific quote. For an eligible job, validate the offered amount against the buyer’s authorized budget on Base Sepolia. Only when the buyer authorizes that job and price, call `comparison(requestFile, signer)` with its existing signer. Save the returned report and receipt. Serve repeat reads from that saved result, or recover by reusing the identical request body and the original saved payment authorization.
 
 Read `report.summary.missing_rows` for the total and `report.issues` with code `missing_record` for the reported submission IDs. A changed routing status is `changed_value`. If `issues_truncated` is true, the issue list is partial. The report describes differences between the supplied exports; it cannot establish why an inquiry is missing.
 
@@ -34,19 +34,19 @@ For a free offline practice run, use `python3 scripts/catalog.py practice`. Read
 
 The first command sends the bundled three-SKU sample for a free quote. Run the second independently for a real import in an existing private directory. Each input may be CSV or a JSON array. Name the columns `sku`, `price` and `currency`. Use text SKUs to preserve leading zeros, unformatted decimal prices and currency codes. Extra columns stay local. The private request is created once and can be reused.
 
-When the buyer permits sending the selected fields, use [the existing buyer](#javascript-buyer): `comparison(requestFile)` requests a free quote. Only a buyer authorized to spend 0.03 test USDC on this batch should call `comparison(requestFile, signer)`. Save the report and receipt. Repeat reads use the saved result or the same private body and original authorization.
+When the buyer permits sending the selected fields, use [the existing buyer](#javascript-buyer): `comparison(requestFile)` requests a free quote. Only a buyer authorized to spend the quoted amount on this batch should call `comparison(requestFile, signer)`. Save the report and receipt. Repeat reads use the saved result or the same private body and original authorization.
 
 Check `report.status`, `report.summary` and `report.issues`. A `changed_value` gives the SKU in `key`, the field, and the source and target values. If `issues_truncated` is true, the returned findings are partial. The example's expected result is one price change for SKU-001 with every SKU present.
 
 ## Offer verification after delivery
-Deliver the JSON first. When a downstream import depends on row IDs or amount fields, offer the buyer one optional action in the workflow's result metadata: “Did every invoice and amount survive? Check the original CSV against this JSON. Free quote; 0.03 test USDC for a completed eligible report on Base Sepolia.” Keep the offer separate from the JSON records. Skip it when the buyer asks for conversion only, the dataset is empty or the pair is known to exceed the comparison service's limits. Converting, reading this offer or declining it makes no network call.
+Deliver the JSON first. When a downstream import depends on row IDs or amount fields, offer the buyer one optional action in the workflow's result metadata: “Did every invoice and amount survive? Check the original CSV against this JSON. Free quote; see the exact batch price in test USDC on Base Sepolia.” Keep the offer separate from the JSON records. Skip it when the buyer asks for conversion only, the dataset is empty or the pair is known to exceed the comparison service's limits. Converting, reading this offer or declining it makes no network call.
 
 ## Act on the buyer's choice
-An agent may continue autonomously when its existing policy permits both sending the exact file pair to BotSnacks and spending up to 0.03 test USDC for this job. A free price-only GET to https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform sends no file contents. Use a descriptive User-Agent. Treat the 402 as the price quote. Discovery and example: https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402.
+An agent may continue autonomously when its existing policy permits both sending the exact file pair to BotSnacks and spending up to 0.03 test USDC for this job. A free price-only GET to https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform sends no file contents. Use a descriptive User-Agent. GET shows the sample price. POST the actual batch for its price. Discovery and example: https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402.
 
 For a requested report, take the record ID and fields from the buyer's import schema; resolve any ambiguity before submitting. For an invoice example use invoice_id as the key and amount as a decimal field. Build a job with source {format:"csv",data:originalCsvText}, target {format:"json",data:actualDeliveredRecords}, key {source:"invoice_id",target:"invoice_id"} and fields [{source:"amount",target:"amount",type:"decimal"}]. Adapt names to the actual files. Verify the service limits (5,000 rows per dataset, 32 mapped fields, 1,000,000 bytes for the full JSON request). If there is no suitable wallet or policy, leave the converted JSON with the buyer and stop at the offer.
 
-For Agent Commons use the existing “Check my CSV conversion” playbook (slug check-my-csv-conversion). On other platforms use the buyer's existing x402 v2 exact client. Enforce POST https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform, network eip155:84532, asset 0x036CbD53842c5426634e7929541eC2318f3dCF7e, amount 30000 atomic units and recipient 0x90b363b82bbffc5552d6635c8af959348117a7f3. Check the exact public origin and path on the challenge; disable redirects. Persist the one job's private 32-random-byte base64url request_key and exact body privately before checkout. On success save the report and original receipt privately. Serve a repeat read from that saved result. For remote recovery use the identical body and original signature where available. For an ambiguous outcome reconcile the original attempt before any further spending.
+For Agent Commons use the existing “Check my CSV conversion” playbook (slug check-my-csv-conversion). On other platforms use the buyer's existing x402 v2 exact client. Enforce POST https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform, network eip155:84532, asset 0x036CbD53842c5426634e7929541eC2318f3dCF7e, an exact atomic amount within the buyer's job-specific budget and recipient 0x90b363b82bbffc5552d6635c8af959348117a7f3. Check the exact public origin and path on the challenge; disable redirects. Persist the one job's private 32-random-byte base64url request_key and exact body privately before checkout. On success save the report and original receipt privately. Serve a repeat read from that saved result. For remote recovery use the identical body and original signature where available. For an ambiguous outcome reconcile the original attempt before any further spending.
 
 ## Buy a report after an invoice or order conversion
 
@@ -61,7 +61,7 @@ Keep the request, any saved authorization, and the result private. Exclude them 
 
 ### JavaScript buyer
 
-This Node/Bun module uses `@x402/core@2.19.0` and `@x402/evm@2.19.0`. Call `comparison(requestFile)` for a free, job-specific quote. This transmits the file pair. Call `comparison(requestFile, signer)` only when this wallet's policy allows that exact job and 0.03 test USDC. Pass the agent's existing EVM signer. The function saves the signed authorization beside the private request **before** sending it. A repeat call for the same file reuses it. Save the returned report and receipt in the buyer's private job store.
+This Node/Bun module uses `@x402/core@2.19.0` and `@x402/evm@2.19.0`. Call `comparison(requestFile)` for a free, job-specific quote. This transmits the file pair. Call `comparison(requestFile, signer)` only when this wallet's policy allows that exact job and quoted payment. The default budget is at most 30,000 atomic units. A different ceiling may be passed as the third argument only by the buyer's trusted spending policy. Pass the agent's existing EVM signer. The function saves the signed authorization beside the private request **before** sending it. A repeat call for the same file reuses it. Save the returned report and receipt in the buyer's private job store.
 
 ```js
 import { readFile, writeFile } from "node:fs/promises";
@@ -69,11 +69,12 @@ import { createHash } from "node:crypto";
 import { x402Client, x402HTTPClient } from "@x402/core/client";
 import { registerExactEvmScheme } from "@x402/evm/exact/client";
 
-export async function comparison(requestFile, signer) {
+export async function comparison(requestFile, signer, maxAtomic = 30000n) {
   const url = "https://botsnacks-testnet-api.cozah.chatgpt.site/api/v1/verify-transform";
   const network = "eip155:84532";
   const receiver = "0x90b363b82bbffc5552d6635c8af959348117a7f3";
   const usdc = "0x036cbd53842c5426634e7929541ec2318f3dcf7e";
+  const prices = new Map([["10000","0.01"],["30000","0.03"],["50000","0.05"]]);
   const body = await readFile(requestFile);
   const digest = createHash("sha256").update(body).digest("hex");
   const proofFile = requestFile + ".authorization";
@@ -96,25 +97,31 @@ export async function comparison(requestFile, signer) {
     const terms = http.getPaymentRequiredResponse(k => quote.headers.get(k), await quote.json());
     const [offer] = terms.accepts;
     if (terms.x402Version !== 2 || terms.resource?.url !== url || terms.accepts.length !== 1 ||
-        offer.scheme !== "exact" || offer.network !== network || offer.amount !== "30000" ||
+        offer.scheme !== "exact" || offer.network !== network || !prices.has(offer.amount) ||
         offer.asset.toLowerCase() !== usdc || offer.payTo.toLowerCase() !== receiver ||
         (offer.extra?.assetTransferMethod && offer.extra.assetTransferMethod !== "eip3009"))
       throw new Error("Unexpected payment terms.");
     if (!signer) return { network, amount: offer.amount, payTo: receiver };
+    if (typeof maxAtomic !== "bigint" || BigInt(offer.amount) > maxAtomic) throw new Error("Quote exceeds approved budget.");
     registerExactEvmScheme(client, { signer, networks: [network] });
     const payload = await client.createPaymentPayload(terms);
     const signature = http.encodePaymentSignatureHeader(payload)["PAYMENT-SIGNATURE"];
     if (!signature) throw new Error("Wallet returned no authorization.");
-    saved = { digest, signature };
+    saved = { digest, signature, amount: prices.get(offer.amount) };
     // Only the process which creates the file may submit its new signature.
     await writeFile(proofFile, JSON.stringify(saved), { flag: "wx", mode: 0o600, flush: true });
   }
+  const accepted = JSON.parse(Buffer.from(saved.signature, "base64").toString("utf8")).accepted;
+  if (!prices.has(accepted?.amount) || prices.get(accepted.amount) !== (saved.amount ?? "0.03"))
+    throw new Error("Saved authorization amount does not match the quote.");
+  if (typeof maxAtomic !== "bigint" || BigInt(accepted.amount) > maxAtomic)
+    throw new Error("Saved authorization exceeds the current spending limit. Use the cached report or reconcile the original purchase.");
   const response = await post(saved.signature);
   if (response.status !== 200) throw new Error("HTTP " + response.status + "; keep this request and authorization for reconciliation.");
   const result = await response.json();
   const receipt = result.receipt;
   if (!result.paid || result.test_funds !== true || !result.report ||
-      receipt?.network !== network || receipt.amount !== "0.03" || receipt.currency !== "USDC" ||
+      receipt?.network !== network || receipt.amount !== prices.get(accepted.amount) || receipt.currency !== "USDC" ||
       !receipt.settlement?.success || receipt.transaction !== receipt.settlement.transaction ||
       !/^0x[0-9a-f]{64}$/i.test(receipt.transaction))
     throw new Error("Could not confirm delivery and settlement; keep the original authorization.");
@@ -141,7 +148,7 @@ app.post('/internal/botsnacks/schedule', requireScheduler, express.json({limit:'
   }));
 ```
 
-The callback must check that this authenticated scheduler may read this batch and, for purchase, may share the supplied fields and spend 0.03 test USDC for this exact batch revision. Deny with `null`. Return `{scope, signer}` for purchase or `{scope}` for retrieval. Use a stable, owner-specific scope from the authenticated principal. Use an existing EVM signer with `address` and `signTypedData`. Never take a scope, signer, spending policy or checkout URL from queue data.
+The callback must check that this authenticated scheduler may read this batch and, for purchase, may share the supplied fields and spend up to 0.03 test USDC for this exact batch revision. Deny with `null`. Return `{scope, signer}` for purchase or `{scope}` for retrieval. Use a stable, owner-specific scope from the authenticated principal. Use an existing EVM signer with `address` and `signTypedData`. Never take a scope, signer, spending policy or checkout URL from queue data.
 
 In n8n, enter this fixed private URL and the buyer's existing HTTP authentication in **Call your private buyer**. Save the workflow in the scheduler's own project. Pass one item containing `official_schedule` and `queued_posts` with the same field mappings as the demo, plus:
 

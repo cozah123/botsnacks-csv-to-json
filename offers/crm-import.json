@@ -6,7 +6,7 @@
   "protocol": "x402",
   "network": "eip155:84532",
   "testnet_only": true,
-  "price": {"amount": "0.03", "currency": "test USDC", "unit": "completed eligible comparison"},
+  "price": {"binding_source": "unsigned POST for the exact batch", "currency": "test USDC", "unit": "completed eligible comparison"},
   "inputs": {"source": "Submissions marked keep in the batch", "target": "Records from the same completed CRM import", "key": "submission_id", "optional_fields": ["routing_status"]},
   "free_quote": "POST the job and a fresh private request_key without a payment signature. HTTP 402 contains the terms.",
   "result": "Missing and unexpected IDs, and changes to any selected routing-status field. Read summary and issues_truncated when processing findings.",

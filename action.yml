@@ -23,7 +23,7 @@ runs:
       run: |
         result=$(python3 "$ACTION_DIR/scripts/convert.py" -- "$SRC" "$DEST")
         if [[ "$result" == available && "$SHOW_OFFER" == true ]]; then
-          printf '%s\n' 'CSV converted. Optional BotSnacks report: check for missing invoices or changed amounts. Free quote, 0.03 test USDC per completed eligible comparison on Base Sepolia.' '[Read the machine-readable offer](https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402)' '[Prepare the job and buy with your existing testnet wallet](https://github.com/cozah123/botsnacks-csv-to-json/blob/main/SKILL.md#buy-a-report-after-an-invoice-or-order-conversion)' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'CSV converted. Optional BotSnacks report: check for missing invoices or changed amounts. Get a free quote for the exact batch price in test USDC on Base Sepolia.' '[Read the machine-readable offer](https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402)' '[Prepare the job and buy with your existing testnet wallet](https://github.com/cozah123/botsnacks-csv-to-json/blob/main/SKILL.md#buy-a-report-after-an-invoice-or-order-conversion)' >> "$GITHUB_STEP_SUMMARY"
           echo 'buyer_instructions=https://raw.githubusercontent.com/cozah123/botsnacks-csv-to-json/main/SKILL.md' >> "$GITHUB_OUTPUT"
           echo 'verification_offer=https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402' >> "$GITHUB_OUTPUT"
         else

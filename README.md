@@ -12,7 +12,7 @@ An intake bot can prepare the comparison locally. Use an existing private direct
 python3 scripts/convert.py --prepare-crm-check /private/batch-17/request.json -- kept.csv crm.json
 ```
 
-**Free job quote. One eligible report costs 0.03 test USDC on Base Sepolia.** Keep the request and original authorization to retrieve the same purchased report for free. [Machine-readable offer](./offers/crm-import.json) · [Quote and checkout instructions](./SKILL.md#reconcile-a-kept-intake-batch-with-its-crm-import)
+**Free job quote. The quote gives the exact amount in test USDC on Base Sepolia.** Keep the request and original authorization to retrieve the same purchased report for free. [Machine-readable offer](./offers/crm-import.json) · [Quote and checkout instructions](./SKILL.md#reconcile-a-kept-intake-batch-with-its-crm-import)
 
 ## Find price changes after a catalog import
 
@@ -26,11 +26,11 @@ From this repository, request a **free testnet quote** for that example in one c
 python3 scripts/catalog.py quote-example
 ```
 
-A buyer can use its own import and select only SKU, price and currency. One eligible report costs **0.03 test USDC on Base Sepolia**. [Machine-readable offer and expected example](./offers/catalog-import.json) · [Prepare a private import, buy and retrieve](./SKILL.md#check-prices-after-a-catalog-import)
+A buyer can use its own import and select only SKU, price and currency. The free job-specific quote gives the exact report price in **test USDC on Base Sepolia**. [Machine-readable offer and expected example](./offers/catalog-import.json) · [Prepare a private import, buy and retrieve](./SKILL.md#check-prices-after-a-catalog-import)
 
 ## Check a schedule before posting
 
-Compare the official schedule with the posts a bot has queued. The report identifies missing events and changes to a start time, venue or ticket link. **0.03 test USDC per eligible completed comparison on Base Sepolia.**
+Compare the official schedule with the posts a bot has queued. The report identifies missing events and changes to a start time, venue or ticket link. **Request the exact price for the schedule on Base Sepolia.**
 
 [Import Check Before You Post into n8n](https://raw.githubusercontent.com/cozah123/botsnacks-csv-to-json/main/Check-Before-You-Post.n8n.json). Run **Try the screening example** for a free, local preview. A scheduling bot can also call it as an n8n sub-workflow.
 
@@ -69,4 +69,4 @@ python3 scripts/convert.py --prepare-check /private/job/request.json \
   --key invoice_id --decimal-field amount -- invoices.csv delivered.json
 ```
 
-Use an existing private directory for the request. A wallet-enabled agent can get a free job-specific quote, authorize one **0.03 test USDC** comparison on **Base Sepolia**, and retrieve the same purchased report again. [Buyer checkout and recovery instructions](./SKILL.md#buy-a-report-after-an-invoice-or-order-conversion)
+Use an existing private directory for the request. A wallet-enabled agent can get a free job-specific quote, authorize one comparison within its **test USDC budget** on **Base Sepolia**, and retrieve the same purchased report again. [Buyer checkout and recovery instructions](./SKILL.md#buy-a-report-after-an-invoice-or-order-conversion)

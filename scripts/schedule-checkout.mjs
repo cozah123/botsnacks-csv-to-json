@@ -58,6 +58,8 @@ async function post(body, signature) {
       ...(signature ? {'PAYMENT-SIGNATURE':signature} : {})}, body});
 }
 
+const prices = new Map([['10000','0.01'], ['30000','0.03'], ['50000','0.05']]);
+
 async function readOffer(response) {
   if (response.status !== 402) throw Error('Expected an eligible job quote.');
   const client = new x402Client();
@@ -65,22 +67,23 @@ async function readOffer(response) {
   const terms = http.getPaymentRequiredResponse(k => response.headers.get(k), await response.json());
   const offer = terms.accepts?.[0];
   if (terms.x402Version !== 2 || terms.resource?.url !== endpoint || terms.accepts?.length !== 1 ||
-      offer?.scheme !== 'exact' || offer.network !== network || offer.amount !== '30000' ||
+      offer?.scheme !== 'exact' || offer.network !== network || !prices.has(offer.amount) ||
       offer.asset?.toLowerCase() !== token || offer.payTo?.toLowerCase() !== receiver ||
       (offer.extra?.assetTransferMethod !== undefined && offer.extra.assetTransferMethod !== 'eip3009') ||
       offer.extra?.name !== 'USDC' || offer.extra?.version !== '2' ||
       !Number.isInteger(offer.maxTimeoutSeconds) || offer.maxTimeoutSeconds <= 0 || offer.maxTimeoutSeconds > 300)
     throw Error('Unexpected payment terms.');
-  return {client,http,terms};
+  return {client,http,terms,amount:prices.get(offer.amount)};
 }
 
 async function sign(body, signer) {
-  const {client,http,terms} = await readOffer(await post(body));
+  const {client,http,terms,amount} = await readOffer(await post(body));
+  if (BigInt(terms.accepts[0].amount) > 30000n) throw Error('Quote exceeds the authorized schedule budget.');
   registerExactEvmScheme(client, {signer, networks:[network]});
   const payload = await client.createPaymentPayload(terms);
   const signature = http.encodePaymentSignatureHeader(payload)['PAYMENT-SIGNATURE'];
   if (!signature) throw Error('No authorization returned.');
-  return signature;
+  return {signature,amount};
 }
 
 // Optional EIP-191 identification is separate from payment authorization.
@@ -105,15 +108,15 @@ async function freeQuote(request, quoteSigner) {
   let response = await post(body);
   // A server without optional proof support may still provide the free quote.
   if (quoteSigner && response.status === 422) response = await post(request.body);
-  await readOffer(response);
+  return (await readOffer(response)).amount;
 }
 
-function validateResult(result, jobHash, payer) {
+function validateResult(result, jobHash, payer, amount) {
   const r = result?.receipt;
   if (result?.mode !== 'testnet' || result?.test_funds !== true || result.paid !== true ||
       !['passed','issues_found','cannot_verify'].includes(result.report?.status) ||
       r?.protocol !== 'x402' || r.mode !== 'testnet' || r.test_funds !== true ||
-      r.network !== network || r.amount !== '0.03' || r.currency !== 'USDC' ||
+      r.network !== network || !['0.01','0.03'].includes(amount) || r.amount !== amount || r.currency !== 'USDC' ||
       r.payer?.toLowerCase() !== payer || !result.quote_id || r.quote_id !== result.quote_id ||
       r.input_hash !== jobHash || r.report_hash !== hash(canonical(result.report)) ||
       !/^0x[0-9a-f]{64}$/i.test(r.transaction) || r.settlement?.success !== true ||
@@ -122,7 +125,7 @@ function validateResult(result, jobHash, payer) {
 
 // Mount behind the buyer's existing authenticated scheduler route. Policy is buyer-owned.
 // authorize must authorize this principal to read this batch and, for a purchase,
-// approve sharing the exact job and one 0.03 test USDC payment using its signer.
+// approve sharing the exact job and one payment up to 0.03 test USDC using its signer.
 export function scheduleCheckout({directory, authorize}) {
   if (!directory || typeof authorize !== 'function') throw Error('Private storage and buyer policy are required.');
   return async (req, res) => {
@@ -152,8 +155,8 @@ export function scheduleCheckout({directory, authorize}) {
       if (request.jobHash !== jobHash) return reply(409,'batch_revision_conflict');
       if (action === 'quote') {
         // The caller must separately approve sharing the data; no payment signer is used.
-        await freeQuote(request,grant.quoteSigner);
-        return reply(200,'schedule_quoted',{batch_id,network,amount:'0.03',currency:'test USDC',charged:false});
+        const amount = await freeQuote(request,grant.quoteSigner);
+        return reply(200,'schedule_quoted',{batch_id,network,amount,currency:'test USDC',charged:false});
       }
       // Older request files already hold the approved payer. New batches bind it on first purchase.
       const payerPath = join(folder,'payer.json');
@@ -178,18 +181,18 @@ export function scheduleCheckout({directory, authorize}) {
           catch (e) { if (e.code !== 'EEXIST') throw e; return reply(202,'checkout_pending'); }
           try {
             proof = await existing(proofFile);
-            if (!proof) proof = await saveOnce(proofFile,{digest:hash(request.body),signature:await sign(request.body,grant.signer)});
+            if (!proof) proof = await saveOnce(proofFile,{digest:hash(request.body),...await sign(request.body,grant.signer)});
           } finally { await lock.close(); await unlink(lockFile); }
         }
         if (proof.digest !== hash(request.body) || !proof.signature) throw Error('Invalid saved authorization.');
         const paid = await post(request.body,proof.signature);
         if (paid.status !== 200) return reply(paid.status === 202 ? 202 : 502,'reconcile_original');
         const delivered = await paid.json();
-        validateResult(delivered,jobHash,payer);
+        validateResult(delivered,jobHash,payer,proof.amount ?? '0.03');
         result = await saveOnce(resultFile,{quote_id:delivered.quote_id, mode:delivered.mode,
-          test_funds:true,paid:true,report:delivered.report,receipt:delivered.receipt});
+          amount:proof.amount ?? '0.03',test_funds:true,paid:true,report:delivered.report,receipt:delivered.receipt});
       }
-      validateResult(result,jobHash,payer);
+      validateResult(result,jobHash,payer,result.amount ?? '0.03');
       return reply(200,'report_ready',{batch_id,source:fromCache?'saved_report':'seller',
         quote_id:result.quote_id, report:result.report, receipt:result.receipt});
     } catch { return reply(503,'hold_and_reconcile'); }
