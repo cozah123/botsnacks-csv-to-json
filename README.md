@@ -34,6 +34,27 @@ python3 scripts/catalog.py quote-example
 
 A buyer can use its own import and select only SKU, price and currency. The free job-specific quote gives the exact report price in **test USDC on Base Sepolia**. [Machine-readable offer and expected example](./offers/catalog-import.json) · [Prepare a private import, buy and retrieve](./SKILL.md#check-prices-after-a-catalog-import)
 
+### Store Catalog Exporter
+
+After the exporter's offline conversion, compare the original Shopify feed with the generated `variants.csv` from that same run. Use matching scopes if the export was filtered. BotSnacks matches variant IDs and compares SKU and numeric price. Currency is absent from this CSV. Only the three selected fields go into the private request. [Exporter and sample feed](https://github.com/Nir-Bhay/store-catalog-exporter/tree/ca8b4412610917e0323d3ae1b7d45f6bbabd7246)
+
+```sh
+python3 scripts/catalog.py prepare-store-export supplier-feed.json exports/demo/variants.csv /private/batch/request.json
+```
+
+An operator who permits sharing those fields can run `python3 scripts/catalog.py quote /private/batch/request.json` for the exact testnet price. A separately authorized buyer can use the same request to purchase and retrieve the report. [Buyer instructions](./SKILL.md#javascript-buyer)
+
+For an existing GitHub Actions export job, an operator can add this step immediately after generating the CSV. Adding the step authorizes sending the selected fields for a free quote on each run. It exposes `price_test_usdc` and a private `request_path` to later steps on the same runner. Keep that file out of logs, caches and artifacts.
+
+```yaml
+- name: Quote the completed catalog export
+  id: catalog_quote
+  uses: cozah123/botsnacks-csv-to-json/integrations/store-catalog-exporter@main
+  with:
+    source: supplier-feed.json
+    variants: exports/demo/variants.csv
+```
+
 ## Check a schedule before posting
 
 Compare the official schedule with the posts a bot has queued. The report identifies missing events and changes to a start time, venue or ticket link. **Request the exact price for the schedule on Base Sepolia.**

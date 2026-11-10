@@ -1,0 +1,35 @@
+name: 'Quote a Shopify catalog export on BotSnacks'
+description: 'Request a free, unsigned Base Sepolia quote for the variant IDs, SKUs and prices from one completed export.'
+inputs:
+  source:
+    description: 'Path to the original Shopify products JSON for this export scope.'
+    required: true
+  variants:
+    description: 'Path to variants.csv from the same Store Catalog Exporter run.'
+    required: true
+outputs:
+  price_test_usdc:
+    description: 'Exact quoted purchase price in test USDC. The quote itself is free.'
+    value: ${{ steps.quote.outputs.price_test_usdc }}
+  request_path:
+    description: 'Private request file on this runner for the buyer to reuse for an authorized purchase.'
+    value: ${{ steps.quote.outputs.request_path }}
+runs:
+  using: composite
+  steps:
+    - id: quote
+      shell: bash
+      env:
+        SOURCE_FEED: ${{ inputs.source }}
+        VARIANT_CSV: ${{ inputs.variants }}
+        INTEGRATION_DIR: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        umask 077
+        job_dir=$(mktemp -d "$RUNNER_TEMP/botsnacks-catalog.XXXXXXXX")
+        request="$job_dir/request.json"
+        script="$INTEGRATION_DIR/../../scripts/catalog.py"
+        python3 "$script" prepare-store-export -- "$SOURCE_FEED" "$VARIANT_CSV" "$request"
+        python3 "$script" quote "$request" > "$job_dir/quote.json"
+        price=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["price_test_usdc"])' < "$job_dir/quote.json")
+        printf 'price_test_usdc=%s\nrequest_path=%s\n' "$price" "$request" >> "$GITHUB_OUTPUT"

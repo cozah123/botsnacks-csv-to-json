@@ -25,6 +25,13 @@
   "practice_command": "python3 scripts/catalog.py practice",
   "practice_clean_command": "python3 scripts/catalog.py practice --clean",
   "practice_exit_codes": {"0": "pass", "1": "hold", "2": "no_verdict"},
+  "store_catalog_exporter": {
+    "source": "Shopify products JSON from the same export scope",
+    "target": "Store Catalog Exporter variants.csv",
+    "matched_by": "variant ID",
+    "compared_fields": ["sku", "price"],
+    "prepare_command": "python3 scripts/catalog.py prepare-store-export supplier-feed.json exports/demo/variants.csv /private/batch/request.json"
+  },
   "job_quote_command": "python3 scripts/catalog.py quote /private/batch/request.json",
   "example_command": "python3 scripts/catalog.py quote-example",
   "example_job": {

@@ -4,6 +4,7 @@ import argparse
 import base64
 import csv
 import json
+import io
 import secrets
 import sys
 from decimal import Decimal, InvalidOperation
@@ -52,6 +53,43 @@ def catalog_rows(path):
             raise ValueError(f"Row {index} needs a currency code.")
         projected.append({"sku": sku, "price": str(price), "currency": currency})
     return projected
+
+
+def store_export_job(source_path, csv_path):
+    """Compare a single Shopify feed snapshot with its exported variants.csv."""
+    with source_path.open(encoding="utf-8-sig") as file:
+        feed = json.load(file, parse_float=Decimal, object_pairs_hook=unique_fields)
+    if not isinstance(feed, dict) or not isinstance(feed.get("products"), list):
+        raise ValueError("Expected a Shopify feed with a products array.")
+    variants = []
+    for product in feed["products"]:
+        if not isinstance(product, dict) or not isinstance(product.get("variants"), list):
+            raise ValueError("Each product must supply its variants array.")
+        variants.extend(product["variants"])
+
+    data = csv_path.read_bytes()
+    headers = next(csv.reader(io.StringIO(data.decode("utf-8-sig"), newline=""), strict=True), [])
+    if not {"id", "sku", "price"}.issubset(headers):
+        raise ValueError("Expected id, sku and price columns from variants.csv.")
+    target = convert_csv(data)
+    if not variants or max(len(variants), len(target)) > 5000:
+        raise ValueError("Select a nonempty source and at most 5,000 variants per file.")
+
+    def project(row):
+        if not isinstance(row, dict):
+            raise ValueError("Expected a variant record.")
+        identity, sku, price = row.get("id"), row.get("sku"), row.get("price")
+        if type(identity) not in (str, int) or not str(identity).strip():
+            raise ValueError("Each variant needs its original variant ID.")
+        if not isinstance(sku, str) or type(price) not in (str, int, Decimal):
+            raise ValueError("Each variant needs a text SKU and a price.")
+        return {"id": str(identity), "sku": sku, "price": str(price)}
+
+    return {"source": {"format": "json", "data": [project(v) for v in variants]},
+            "target": {"format": "json", "data": [project(v) for v in target]},
+            "key": {"source": "id", "target": "id"},
+            "fields": [{"source": "sku", "target": "sku", "type": "exact"},
+                       {"source": "price", "target": "price", "type": "decimal"}]}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -132,9 +170,11 @@ def main():
     quote = commands.add_parser("quote", help="Send a prepared private request for a free quote; never signs or pays.")
     quote.add_argument("request", type=Path)
     prep = commands.add_parser("prepare", help="Create a private request locally for a real import.")
-    prep.add_argument("source", type=Path)
-    prep.add_argument("target", type=Path)
-    prep.add_argument("request", type=Path)
+    store = commands.add_parser("prepare-store-export", help="Prepare a Shopify feed and Store Catalog Exporter variants.csv locally.")
+    for command in (prep, store):
+        command.add_argument("source", type=Path)
+        command.add_argument("target", type=Path)
+        command.add_argument("request", type=Path)
     args = parser.parse_args()
     example = json.loads(OFFER_PATH.read_text(encoding="utf-8"))["example_job"]
     if args.command == "practice":
@@ -156,6 +196,10 @@ def main():
         raise ValueError("Choose the supplier snapshot and the output from the same import.")
     if args.request.exists():
         raise ValueError("Reuse the existing private request or choose a new file.")
+    if args.command == "prepare-store-export":
+        write_private_request(store_export_job(args.source, args.target), args.request)
+        print("Private store export comparison prepared locally.")
+        return
     source, target = catalog_rows(args.source), catalog_rows(args.target)
     if not source:
         raise ValueError("Provide at least one source SKU.")
