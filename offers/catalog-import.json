@@ -7,7 +7,7 @@
   "protocol": "x402",
   "network": "eip155:84532",
   "testnet_only": true,
-  "price": {"binding_source": "unsigned POST for the exact batch", "currency": "test USDC", "unit": "completed eligible comparison"},
+  "price": {"binding_source": "unsigned POST for the exact batch", "schedule_url": "https://botsnacks-testnet-api.cozah.chatgpt.site/.well-known/x402", "minimum": "0.01", "maximum": "0.05", "currency": "test USDC", "unit": "completed eligible comparison"},
   "inputs": {"key": "sku", "fields": {"price": "decimal", "currency": "exact"}, "scope": "Same catalog revision, variants, price basis and units in both exports."},
   "free_quote": "POST job and a private request_key with no payment signature. An eligible request returns HTTP 402 with the terms. Prefix keys for synthetic examples with bs_qa_.",
   "practice_command": "python3 scripts/catalog.py practice",
